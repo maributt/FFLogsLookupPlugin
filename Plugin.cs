@@ -21,11 +21,8 @@ namespace FFLogsLookup
         private Configuration config;
         private PluginUi ui;
         private FflogRequestsHandler fflog;
-        public RestClient Client;
         private Dalamud.Game.Internal.Gui.ChatGui Chat;
-        public bool ShowNormal = false;
-        public bool ShowUltimates = false;
-        public string ApiKey;
+        
         private enum ChatColors
         {
             Yellow = 548,
@@ -40,58 +37,26 @@ namespace FFLogsLookup
         {
             "<t>", "<mo>", "<f>", "<me>"
         };
-        
-        public string configFilePath = @".\config.yaml";
+        private ConfigUI configUi;
         public string Name => "FFLogs Lookup";
-
-        /// <summary>
-        /// Retrieves both `client-id` and `client-secret` from config.yaml inside the plugin folder
-        /// </summary>
-        /// <returns></returns>
-        public FflogsApiCredentials GetFflogsAppCredentialsFromFile()
-        {
-            // i didn't opt for a premade parser just because it seems very overkill for getting 2 very simple things from one yaml file
-            var credentials = new FflogsApiCredentials();
-            if (File.Exists(configFilePath)) {
-                var content = File.ReadAllLines(configFilePath);
-                foreach (var line in content)
-                {
-                    var aLine = line.Split(':');
-                    switch (aLine[0])
-                    {
-                        case "client-id":
-                            credentials.id = aLine[1].Trim();
-                            break;
-                        case "client-secret":
-                            credentials.secret = aLine[1].Trim();
-                            break;
-                    }
-                    if (credentials.id != null && credentials.secret != null)
-                    {
-                        return credentials;
-                    }
-                }
-            } else
-            {
-                File.Create(configFilePath);
-                File.WriteAllLines(configFilePath, new string[] { 
-                    "client-id: replace_this_text_with_your_client_id", 
-                    "client-id: replace_this_text_with_your_client_secret"
-                });
-            }
-            throw new Exception("Could not find valid client-id and/or client-secret fields in config.yaml file");
-        }
 
         public void Initialize(DalamudPluginInterface pluginInterface)
         {
             this.pluginInterface = pluginInterface;
             this.config = (Configuration)this.pluginInterface.GetPluginConfig() ?? new Configuration();
-            this.fflog = new FflogRequestsHandler(this.pluginInterface, "https://www.fflogs.com/api/v2/client/", new FflogsApiCredentials("", ""));
+            this.fflog = new FflogRequestsHandler(this.pluginInterface, this.config);
             this.Chat = pluginInterface.Framework.Gui.Chat;
             this.config.Initialize(this.pluginInterface);
             this.ui = new PluginUi(this.pluginInterface, this.fflog, this.config);
+            this.configUi = new ConfigUI(this.pluginInterface, this.config, this.fflog);
             this.pluginInterface.UiBuilder.OnBuildUi += this.ui.Draw;
+            this.pluginInterface.UiBuilder.OnBuildUi += this.configUi.Draw;
             this.commandManager = new PluginCommandManager<Plugin>(this, this.pluginInterface);
+            if (config.initialConfig)
+            {
+                this.pluginInterface.UiBuilder.OnBuildUi += this.configUi.DrawInitialSetup;
+            }
+            
         }
 
         /// <summary>
@@ -140,13 +105,25 @@ namespace FFLogsLookup
 
         [Command("/ffll")]
         [HelpMessage("Lookup a given character's FFlogs parses")]
-        async public void LookupChatCommand(string command, string arguments)
+        public async void LookupChatCommand(string command, string arguments)
         {
+            
+            if (config.initialConfig)
+            {
+                Chat.PrintError("You must complete the initial configuration process before you can start looking up players' logs!");
+                return;
+            }
             var args = arguments.Split(' ');
 
             // incorrect n of args
             // will add a config ui when called with 0 arguments in the future
-            if (args.Length == 0 || args.Length > 3)
+            if (args.Length == 1 && args[0] == "")
+            {
+                this.configUi.IsVisible = !this.configUi.IsVisible;
+                return;
+            }
+            
+            if (args.Length > 3)
             {
                 Chat.PrintError("An invalid number of arguments was passed!");
                 return;
@@ -207,7 +184,7 @@ namespace FFLogsLookup
                 }
             }
 
-            FflogsApiResponse response = await fflog.PerformRequest(new FflogsRequestParams(targetInfo, false, false));
+            FflogsApiResponse response = await fflog.PerformRequest(targetInfo);
             var tierSummary = fflog.Summarize(response, targetInfo);
             
             // if an "error" occurred during Summarize (character not found, hidden logs)
@@ -262,11 +239,13 @@ namespace FFLogsLookup
             if (!disposing) return;
 
             this.commandManager.Dispose();
-
             this.pluginInterface.SavePluginConfig(this.config);
-
             this.pluginInterface.UiBuilder.OnBuildUi -= this.ui.Draw;
-
+            this.pluginInterface.UiBuilder.OnBuildUi -= this.configUi.Draw;
+            if (config.initialConfig)
+            {
+                this.pluginInterface.UiBuilder.OnBuildUi -= this.configUi.DrawInitialSetup;
+            }
             this.pluginInterface.Dispose();
         }
 

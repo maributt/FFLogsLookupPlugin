@@ -88,6 +88,7 @@ namespace HelperTypes
     public class Fight
     {
         public string job;
+        public string bossname;
         public float rdps;
         public int kills;
         public int medianPercentile;
@@ -102,8 +103,9 @@ namespace HelperTypes
                 { 73, "e9"}, { 74, "e10" }, { 75, "e11" }, { 76, "e12"}, {77, "e12s p2"}
             };
 
-        public Fight(Meta meta, int encounterId, string job, float rdps, int kills, int medianPercentile, int highestPercentile, bool savage)
+        public Fight(Meta meta, string name, int encounterId, string job, float rdps, int kills, int medianPercentile, int highestPercentile, bool savage)
         {
+            this.bossname = name;
             this.id = encounterId;
             this.job = job;
             this.rdps = rdps;

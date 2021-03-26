@@ -8,21 +8,24 @@ using HelperTypes;
 using Dalamud.Plugin;
 using System.Linq;
 using Dalamud.Interface;
+using FFLogsLookup;
 using Lumina.Excel.GeneratedSheets;
+using RestSharp.Authenticators;
 
 public class FflogRequestsHandler
 {
-
-	private string EndpointUrl;
-    private FflogsApiCredentials Credentials;
-    private string BearerToken = "";
-
+    private string BearerToken;
+    
     public RestClient Client;
+    public RestClient OAuthClient;
     public DalamudPluginInterface Interface;
 
-    private List<Lumina.Excel.GeneratedSheets.World> Worlds;
-    private List<Lumina.Excel.GeneratedSheets.WorldDCGroupType> WorldDcs;
-    private string[] RegionName = new string[4] { "INVALID", "JP", "NA", "EU" };
+    public string AccessTokenUrl = "https://www.fflogs.com/oauth/token";
+    public string ClientEndpoint = "https://www.fflogs.com/api/v2/client/";
+
+    private readonly List<Lumina.Excel.GeneratedSheets.World> _worlds;
+    private readonly List<Lumina.Excel.GeneratedSheets.WorldDCGroupType> _worldDcs;
+    private readonly string[] _regionName = new string[4] { "INVALID", "JP", "NA", "EU" };
 
     private static int[] TwoPartFights = new int[4]
     {
@@ -30,65 +33,125 @@ public class FflogRequestsHandler
         64,     // The Final Omega
         55,     // God Kefka
         46      // Neo Exdeath
+        // for the time being just storing the second part's ID is fine
+        // that's because the fight's first part's id is one less than the second part's
     };
 
-    /// This is in case in the future two part encounters aren't following one another's id
-    /*private Dictionary<int, int> TwoPartFights = new Dictionary<int, int>()
-    {
-        // Oracle of Darkness
-        { 77, 76 },
+    private Configuration config;
 
-        // The Final Omega
-        { 64, 63 },
-
-    };*/
-
-
-    public FflogRequestsHandler(DalamudPluginInterface pluginInterface, string endpointUrl, FflogsApiCredentials credentials)
+    public FflogRequestsHandler(DalamudPluginInterface pluginInterface, Configuration config)
 	{
-		this.EndpointUrl = endpointUrl;
-        this.Credentials = credentials;
         this.Interface = pluginInterface;
+        this.config = config;
+        this.BearerToken = config.bearer_token;
 
-        this.Worlds =  Interface.Data.GetExcelSheet<Lumina.Excel.GeneratedSheets.World>().ToList();
-        this.WorldDcs = Interface.Data.GetExcelSheet<Lumina.Excel.GeneratedSheets.WorldDCGroupType>().ToList();
+        this._worlds =  Interface.Data.GetExcelSheet<Lumina.Excel.GeneratedSheets.World>().ToList();
+        this._worldDcs = Interface.Data.GetExcelSheet<Lumina.Excel.GeneratedSheets.WorldDCGroupType>().ToList();
 
-        this.Client = new RestClient(endpointUrl); //"https://www.fflogs.com/api/v2/client/"
-
+        this.Client = new RestClient(ClientEndpoint);
+        this.OAuthClient = new RestClient(AccessTokenUrl);
     }
 
+    
+
     /// <summary>
-    /// Gets the Bearer Token (if it exists) issued by the FFLogs API <br/>
-    /// creates a new bearer token otherwise
+    /// Gets the Bearer Token (if it exists) as issued by the FFLogs API <br/>
+    /// requests a new bearer token from the API otherwise
     /// </summary>
     /// <returns>da token</returns>
-    private string GetBearerToken()
+    private async Task<string> GetBearerToken(bool forceRefreshBearer=false)
     {
-        return this.BearerToken ?? "get rekt";
+        if (this.BearerToken != null && !forceRefreshBearer)
+            return this.BearerToken;
+        var request = new RestRequest() {Method = Method.POST};
+        // i found this on stackoverflow lolololo
+        request.AddHeader("cache-control", "no-cache");
+        request.AddHeader("content-type", "application/x-www-form-urlencoded");
+        request.AddParameter(
+            "application/x-www-form-urlencoded", 
+            "grant_type=client_credentials" +
+            $"&client_id={config.client_id}" +
+            $"&client_secret={config.client_secret}", 
+            ParameterType.RequestBody
+        );
+        var response = await OAuthClient.ExecuteAsync(request);
+        var obj = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.Content);
+        /*foreach (var key in obj.Keys)
+        {
+            PluginLog.Log("found key: "+key);
+            PluginLog.Log("value: "+obj[key]);
+        }*/
+        if (!obj.Keys.Contains("access_token")) return "";
+        this.BearerToken = (string)obj["access_token"];
+        config.bearer_token = this.BearerToken;
+        config.Save();
+        return this.BearerToken;
+    }
+    
+    private async Task<string> GetBearerToken(string client_id, string client_secret)
+    {
+        var request = new RestRequest() {Method = Method.POST};
+        // i found this on stackoverflow lolololo
+        request.AddHeader("cache-control", "no-cache");
+        request.AddHeader("content-type", "application/x-www-form-urlencoded");
+        request.AddParameter(
+            "application/x-www-form-urlencoded", 
+            "grant_type=client_credentials" +
+            $"&client_id={client_id}" +
+            $"&client_secret={client_secret}", 
+            ParameterType.RequestBody
+        );
+        var response = await OAuthClient.ExecuteAsync(request);
+        var obj = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.Content);
+        /*foreach (var key in obj.Keys)
+        {
+            PluginLog.Log("found key: "+key);
+            PluginLog.Log("value: "+obj[key]);
+        }*/
+        if (!obj.Keys.Contains("access_token")) return "";
+        this.BearerToken = (string)obj["access_token"];
+        config.bearer_token = this.BearerToken;
+        config.Save();
+        return this.BearerToken;
     }
 
-
-    /*public async Task<RaidingTierPerformance> PerformRequest(FflogsRequestParams parameters, bool summarize=true)
+    public async Task<bool> TestRequest(string client_id, string client_secret)
     {
-        if (!summarize) return null;
-        var response = await PerformRequest(parameters);
-        return Summarize(response, parameters.player);
-    }*/
-    /// <summary>
-    /// Queries the FFLogs API on the endpoint passed to the constructor
-    /// </summary>
-    /// <param name="parameters">Object consisting of a TargetInfo object and extra query parameters</param>
-    /// <returns></returns>
-    public async Task<FflogsApiResponse> PerformRequest(FflogsRequestParams parameters)
+        var request = new RestRequest(Method.POST);
+        var bearer = await GetBearerToken(client_id, client_secret);
+        if (bearer == "")
+        {
+            return false;
+        } 
+        request.AddHeader("Content-Type", "application/json");
+        request.AddHeader("Authorization", $"Bearer {bearer}");
+        request.AddParameter("application/json", "{\"query\":\"query {\\n  rateLimitData {\\n    pointsResetIn\\n  }\\n}\"}", ParameterType.RequestBody);
+        var response = await this.Client.ExecuteAsync(request);
+        try
+        {
+            var obj = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.Content);
+            return !obj.Keys.Contains("error");
+        }
+        catch (Exception e)
+        {
+            this.BearerToken = bearer;
+            return true;
+        }
+    }
+    
+    public async Task<FflogsApiResponse> PerformRequest(TargetInfo player)
     {
         // TODO: make sure when checking if the inspect window is open that the player name from the window = player name from the request 
         
-        var world = this.Worlds.Find(w => w.Name.ToString().Equals(parameters.player.world));
-        var dc = this.WorldDcs.Find(d => d.Name.ToString().Equals(world.DataCenter.Value.Name));
-        var region = RegionName[dc.Region];
+        var world = this._worlds.Find(w => w.Name.ToString().Equals(player.world));
+        var dc = this._worldDcs.Find(d => d.Name.ToString().Equals(world.DataCenter.Value.Name));
+        var region = _regionName[dc.Region];
 
         // allows normal parses to show up if no savage ones are found (grabs the highest diff first (fflogs default))
-        var difficultyFilter = parameters.showNormal ? "" : "difficulty: 101,";
+        var difficultyFilter = this.config.ShowNormal ? "" : "difficulty: 101,";
+        // this is if you are actually demented just straight up crazy:
+        difficultyFilter = (this.config.ShowOnlyNormal ?  "difficulty: 100" : difficultyFilter); 
+ 
         var prettifiedReq =
             "{" +
                 "\"query\" : \"query characterData($name: String!, $serverSlug: String!, $serverRegion: String!) " +
@@ -102,15 +165,15 @@ public class FflogRequestsHandler
                     "\\n}" +
                 "\\n\"," +
                 "\"variables\":{" +
-                    $"\"name\":\"{parameters.player.firstname} {parameters.player.lastname}\"," +
-                    $"\"serverSlug\":\"{parameters.player.world}\"," +
+                    $"\"name\":\"{player.firstname} {player.lastname}\"," +
+                    $"\"serverSlug\":\"{player.world}\"," +
                     $"\"serverRegion\":\"{region}\"" +
                 "}," +
                 "\"operationName\":\"characterData\"" +
             "}";
         var request = new RestRequest(Method.POST)
             .AddHeader("Content-Type", "application/json")
-            .AddHeader("Authorization", $"Bearer {GetBearerToken()}")
+            .AddHeader("Authorization", $"Bearer {await GetBearerToken()}")
             .AddParameter("application/json", prettifiedReq, ParameterType.RequestBody);
 
         var cancellationTokenSource = new CancellationTokenSource();
@@ -179,6 +242,7 @@ public class FflogRequestsHandler
             {
                 processedFight = new Fight(
                     new Meta(ranking.encounter.name),
+                    ranking.encounter.name,
                     ranking.encounter.id,
                     ranking.bestSpec,
                     ranking.bestAmount,

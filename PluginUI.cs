@@ -22,6 +22,15 @@ namespace FFLogsLookup
         private readonly Lumina.Excel.ExcelSheet<Lumina.Excel.GeneratedSheets.Title> _titles;
         private readonly Configuration _config;
         private bool _requestOnce;
+        private bool _requestUltOnce;
+        
+        private List<string> _ultimateTitles = new List<string>()
+        {
+            "The Legend",
+            "The Ultimate Legend",
+            "The Perfect Legend",
+            "The Litgend:joy::joy::joy::joy::joy::joy::joy::joy::joy::joy::100:"
+        };
 
         private readonly Vector4 _yellow = new Vector4(0.898f, 0.8f, 0.501f, 1f);
         private readonly Vector4 _pink = new Vector4(0.886f, 0.408f, 0.659f, 1f);
@@ -30,6 +39,7 @@ namespace FFLogsLookup
         private readonly Vector4 _blue = new Vector4(0f, 0.439f, 1f, 1f);
         private readonly Vector4 _green = new Vector4(0.117f, 1f, 0f, 1f);
         private readonly Vector4 _grey = new Vector4(0.4f, 0.4f, 0.4f, 1f);
+        
 
         private RaidingTierPerformance RaidingPerformance { get; set; }
         
@@ -45,6 +55,7 @@ namespace FFLogsLookup
             // as an argument but play the game in english please and thank you
             this._titles = _interface.Data.Excel.GetSheet<Lumina.Excel.GeneratedSheets.Title>();
             this._requestOnce = true;
+            this._requestUltOnce = true;
         }
 
         private void FormatFightEntryForImGui(Fight f)
@@ -156,16 +167,44 @@ namespace FFLogsLookup
         public async void Draw()
         {
             // if the character inspect window is not visible we make sure fflogs data is requested when it next is
+            
             if (!IsCharacterInspectVisible())
             {
                 this._requestOnce = true;
                 this.RaidingPerformance = new RaidingTierPerformance(0);
                 return;
-                /*if (!resetOnce) return;
-                this.parseEntries = new List<int>{ 0, 0, 0, 0, 0 };
-                errorFromSummarize = null;
-                resetOnce = false;*/
-                
+            }
+            
+            if (_config.initialConfig)
+            {
+                ImGui.SetNextWindowPos(
+                    new Vector2(
+                        this._target.winPosX +10,
+                        this._target.winPosY + this._target.winHeight -65
+                    )
+                );
+                ImGui.Begin("reminder",ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize);
+                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0f, 0f, 1f));
+                ImGui.Text("You must complete the initial configuration\nbefore you can start looking at other players' logs!");
+                ImGui.PopStyleColor();
+                ImGui.End();
+                return;
+            }
+
+            if (_config.ShowUltimates)
+            {
+                try
+                {
+                    this._requestUltOnce = false;
+                    if (this._ultimateTitles.Contains(this._target.title))
+                    {
+                        
+                    }
+                }
+                catch (Exception e)
+                {
+                    PluginLog.Log(e.Message);
+                }
             }
             
             // request character's parses data from fflogs
@@ -174,46 +213,22 @@ namespace FFLogsLookup
                 this._requestOnce = false;
                 var par = new FflogsRequestParams(this._target.ToTargetInfo(), false, false);
                 var temp = 
-                    await _fflog.PerformRequest(
-                        new FflogsRequestParams(this._target.ToTargetInfo(), false, false)
-                    );
+                    await _fflog.PerformRequest(this._target.ToTargetInfo());
                 this.RaidingPerformance = _fflog.Summarize(temp, _target.ToTargetInfo());
-                /*
-                try
-                {
-                    var oogaValue = await fflog.PerformRequest(tiTarget);
-                    var summarized = FflogRequestsHandler.Summarize(oogaValue, tiTarget);
-                    //summarized.meta.erroredProcessing => leads to you pushing different stuff to the UI if there was an "error"
-                    if ((summarized) != null || errorFromSummarize == null)
-                    {
-                        this.parseEntries = new List<int>() {};
-                        foreach (var fight in summarized.fightsArray)
-                        {
-                            this.parseEntries.Add(fight.highestPercentile);
-                            if (fight.part2 != null) this.parseEntries.Add(fight.part2.highestPercentile);
-                        }
-                    }
-                } catch (Exception e)
-                {
-                    PluginLog.Log(e.Message);
-                }*/
             }
             else
             {
                 try
                 {
                     const string windowTitle = "percentiles";
-                    const ImGuiWindowFlags flags = ImGuiWindowFlags.NoDecoration
-                                                   | ImGuiWindowFlags.NoInputs
-                                                   | ImGuiWindowFlags.NoBackground
-                                                   | ImGuiWindowFlags.AlwaysAutoResize;
-
-                    //ImGui.SetNextWindowSize(new Vector2(180, 25));
-                    // +73, -120 -> offsets to place percentiles below the character preview window
+                    ImGuiWindowFlags flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize;
+                    
+                    if (!this._config.ShowBackground) flags |= ImGuiWindowFlags.NoBackground;
+                    // +73, -120 -> offsets to place percentiles right below the character preview window
                     ImGui.SetNextWindowPos(
                         new Vector2(
-                            this._target.winPosX +73,
-                            this._target.winPosY + this._target.winHeight -120
+                            this._target.winPosX +73 + this._config.OffsetX,
+                            this._target.winPosY + this._target.winHeight -120 + this._config.OffsetY
                         )
                     );
                     
@@ -230,9 +245,17 @@ namespace FFLogsLookup
                             ImGui.PopStyleColor();
                         }
                     }
+
+                    var totalPercentiles = 0;
+                    var cx = ImGui.GetCursorPosX();
+                    var i = 0;
+                    var spacing = 20;
+                    
                     foreach (var fight in this.RaidingPerformance.fightsArray)
                     {
+                        totalPercentiles += fight.highestPercentile;
                         ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(fight.highestPercentile));
+                        ImGui.SetCursorPosX(cx+spacing*i);
                         ImGui.Text(""+( fight.highestPercentile switch
                         {
                             0 => "-",
@@ -240,105 +263,58 @@ namespace FFLogsLookup
                             _ => fight.highestPercentile
                         })); ImGui.SameLine();
                         ImGui.PopStyleColor();
-                        if (ImGui.IsItemHovered())
+                        if (ImGui.IsItemHovered() && fight.kills!=0)
                         {
                             ImGui.BeginTooltip();
-                            ImGui.Text(fight.meta.hoverText ?? $"{fight?.getShortName()} ({fight?.job}) (kills: {fight?.kills})");
+                            ImGui.Text($"{fight?.getShortName()} ({fight?.job}) (kills: {fight?.kills})");
                             ImGui.EndTooltip();
                         }
                             
-                        if (fight.part2 != null)
+                        if (fight.savage && fight.part2 != null)
                         {
+                            ImGui.SetCursorPosX(cx+(spacing*(float)(i+0.725)));
                             ImGui.Text("/"); ImGui.SameLine();
+                            ImGui.SetCursorPosX(cx+(spacing*(i+1)));
                             ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(fight.part2.highestPercentile));
                             ImGui.Text(""+( fight.part2.highestPercentile switch
                             {
                                 0 => "-",
-                                100 => "★",
+                                //100 => "★",
                                 _ => fight.part2.highestPercentile
                             })); ImGui.SameLine();
                             ImGui.PopStyleColor();
-                            if (ImGui.IsItemHovered())
+                            if (ImGui.IsItemHovered() && fight.kills!=0)
                             {
                                 ImGui.BeginTooltip();
-                                ImGui.Text(fight.meta.hoverText ?? $"{fight.getShortName()} ({fight.part2.job}) (kills: {fight.part2.kills})");
+                                ImGui.Text($"{fight.getShortName()} ({fight.part2.job}) (kills: {fight.part2.kills})");
                                 ImGui.EndTooltip();
                             }
                         }
 
+                        i++;
+
                     }
+                    if ((_config.ShowNormal||_config.ShowOnlyNormal) 
+                        && !this.RaidingPerformance.firstFight.savage 
+                        && (totalPercentiles != 0 || _config.ShowOnlyNormal))
+                    {
+                        var c = ImGui.GetCursorPosY();
+                        ImGui.NewLine(); ImGui.SetCursorPosY(c+15f);
+                        ImGui.PushStyleColor(ImGuiCol.Text, _grey);
+                        ImGui.Text("Normal");
+                        ImGui.PopStyleColor();
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.BeginTooltip();
+                            ImGui.PushTextWrapPos(300f);
+                            ImGui.TextWrapped("The percentiles above were set in the normal version of the tier's encounters.");
+                            ImGui.PopTextWrapPos();
+                            ImGui.EndTooltip();
+                        }
+                        ImGui.SetCursorPosY(c);
+                    }
+
                     ImGui.End();
-                    
-                    /*else
-                    {
-                        PluginLog.Log(""+this.RaidingPerformance.fightsArray);
-                        foreach (var fight in this.RaidingPerformance.fightsArray)
-                        {
-                            ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(fight.highestPercentile));
-                            ImGui.Text(""+( fight.highestPercentile switch
-                            {
-                                0 => "-",
-                                100 => "★",
-                                _ => fight.highestPercentile
-                            }));
-                            ImGui.PopStyleColor();
-                            if (ImGui.IsItemHovered())
-                            {
-                                ImGui.BeginTooltip();
-                                ImGui.Text(fight.meta.hoverText ?? $"{fight.getShortName()} ({fight.job}) (kills: {fight.kills})");
-                                ImGui.EndTooltip();
-                            }
-                            
-                            if (fight.part2 != null)
-                            {
-                                ImGui.Text("/");
-                                FormatFightEntryForImGui(fight.part2);
-                            }
-                            ImGui.Text(" ");
-                            else
-                            {
-                                ImGui.Text(" ");
-                            }
-
-                        }
-                    }*/
-
-                    /*try
-                    {
-                        for (int i = 0; i < this.parseEntries.Count-1; i++)
-                        {
-                            var textPercentile = this.parseEntries[i] == 0 ? "-" : (this.parseEntries[i]==100? "★": this.parseEntries[i]+"") ;
-
-
-                            ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(this.parseEntries[i]));
-                            ImGui.Text(textPercentile);
-                            if(ImGui.IsItemHovered())
-                            {
-                                ImGui.BeginPopup($"##fight{i}");
-                                ImGui.Text($"{this.parseEntries[i]}");
-                                ImGui.EndPopup();
-                            }
-                            ImGui.PopStyleColor();
-                            ImGui.SameLine();
-                            if (i == this.parseEntries.Count - 2)
-                            {
-                                ImGui.Text("/"); ImGui.SameLine();
-                                ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(this.parseEntries[i + 1]));
-                                ImGui.Text(this.parseEntries[i + 1] == 0 ? "-" : (this.parseEntries[i] == 100 ? "★" : this.parseEntries[i+1] + ""));
-                                ImGui.PopStyleColor();
-                            }
-                        }
-                    } catch (Exception e)
-                    {
-                        PluginLog.Log(e.Message);
-                    }
-
-                    if (errorFromSummarize != null)
-                    {
-                        ImGui.Text(errorFromSummarize);
-                    }*/
-
-                    
                 }
                 catch (Exception e)
                 {
