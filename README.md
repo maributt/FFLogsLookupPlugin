@@ -1,5 +1,5 @@
 <h1 align="center">FFLogsLookup</h1>
-<p align="center">A <a href="https://github.com/goatcorp/Dalamud">Dalamud</a> plugin to display an inspected character's parses directly in the inspect window!<br>install for a brief setup tutorial & type `/ffll` in-game to configure!</p><br>
+<p align="center">A <a href="https://github.com/goatcorp/Dalamud">Dalamud</a> plugin to display an inspected character's parses directly in the inspect window!<br>install for a brief setup tutorial & type <code>/ffll</code> in-game to configure!</p><br>
 
 <img src="https://user-images.githubusercontent.com/76499752/113009205-09b6a580-9178-11eb-8942-088ec0a8528a.png" width="40%" align="right">
 
