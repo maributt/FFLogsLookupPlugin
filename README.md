@@ -1,13 +1,31 @@
-# FFLogsLookupPlugin
-a Dalamud plugin that displays players' percentiles in the character inspect window
+<h1 align="center">FFLogsLookup</h1>
+<p align="center">A <a href="https://github.com/goatcorp/Dalamud">Dalamud</a> plugin to display an inspected character's parses directly in the inspect window!<br>install for a brief setup tutorial & type `/ffll` in-game to configure!</p><br>
 
-this is very unfinished but should work just fine as-is if you put a bearer token that you get yourself from the fflogs v2 api (i'll add a thing to do it automatically from a client id/client secret pair later and add a lil tutorial for it as well)
+<img src="https://user-images.githubusercontent.com/76499752/113009205-09b6a580-9178-11eb-8942-088ec0a8528a.png" width="40%" align="right">
 
-planned features:
-- add a config UI for display offsets and general configuration (if the user wants the parses displayed below the character inspect window instead for example)
-- make it so the plugin requests a bearer token automatically for the api calls instead of having to provide it manually (for now)
-- make viewing normal raid parses possible / smoother (it should work atm! but untested) 
-- fix the imgui hovertext stuff because for some reason it doesn't work???? idk (maybe scrap the idea if it's too janky)
-- make the display of percentiles more uniform (currently they're just ImGui Texts being put one after another, so if for instance you have five consecutive 100 parses ((you absolute champion)) it would display kind of weird (currently I replace 100s with ★s just because 3 digit parses will look very weird without predetermined X positions for texts)
+This plugin aims to provide a simple way of browsing
+an inspected character's parse records from the [FFLogs](https://www.fflogs.com/) website.
+By displaying the current tier's percentiles achieved by the character
+below their character portrait, the user can get a quick glimpse of another player's performance.
 
-![ffxiv_dx11_20210323164009451](https://user-images.githubusercontent.com/76499752/112174147-75d45f00-8bf6-11eb-9b2a-3989f5e52082.png)
+Should the character not have have an FFLogs userpage tied
+to their username, the display will be adjusted accordingly-
+the same applies for if a character's parses have been hidden.
+
+Additionally, the plugin can be configured to look and feel
+more personal, allowing for a X and Y offset to be specified
+through the configuration menu accessible via the command `/ffll`,
+normal parses can also be defaulted to if no savage parses are found.
+Should this be the case, a `Normal` label will be displayed underneath
+the parse entries in the inspect window.
+
+You can also click the parses to open a link to the character's FFLogs page!
+
+<br>
+<br>
+
+
+## Planned features
+
+- **Add** a way to manually select which raid tier to fetch parses from (currently it pulls only from the latest)
+- **Add** a way to display a user's ultimate raid parses if requested (separately from the normal entries / or not)
