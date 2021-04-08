@@ -25,7 +25,13 @@ You can also click the parses to open a link to the character's FFLogs page!
 <br>
 
 
-## Planned features
+## Roadmap
 
-- **Add** a way to manually select which raid tier to fetch parses from (currently it pulls only from the latest)
-- **Add** a way to display a user's ultimate raid parses if requested (separately from the normal entries / or not)
+- **Clean** up the code because it's getting messy very fast
+- **Add** a way for the player to choose the rendering method of the percentiles
+(currently the ImGui is causing some problems where other game windows will not be drawn *over* the percentiles and that's ugly and annoying)
+  - Between ImGui and in-game rendering (by injecting AtkTextNodes into the inspect window directly)
+- **Add** a way to check whether or not an inspect character's clears were bought or not (not 100% accurate as clears could also simply not be logged, but that's sus)
+- **Add** support/testing for more tiers in the tier selector
+- **Change** the way the tier selector looks and is used (it's gonna get cramped fast if I add more tiers in there)
+- **Add** command aliases to toggle on/off config options without having to use the config window (so that it can be put in a macro for ease of access)
