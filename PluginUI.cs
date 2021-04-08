@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System;
 using System.Numerics;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Dalamud.Interface;
@@ -22,8 +23,8 @@ namespace FFLogsLookup
         private readonly Lumina.Excel.ExcelSheet<Lumina.Excel.GeneratedSheets.Title> _titles;
         private readonly Configuration _config;
         private bool _requestOnce;
-        private bool _requestUltOnce;
-        
+        //private bool _requestUltOnce;
+
         private List<string> _ultimateTitles = new List<string>()
         {
             "The Legend",
@@ -32,14 +33,13 @@ namespace FFLogsLookup
             "The Litgend:joy::joy::joy::joy::joy::joy::joy::joy::joy::joy::100:"
         };
 
-        private readonly Vector4 _yellow = new Vector4(0.898f, 0.8f, 0.501f, 1f);
-        private readonly Vector4 _pink = new Vector4(0.886f, 0.408f, 0.659f, 1f);
-        private readonly Vector4 _orange = new Vector4(1.0f, 0.5019f, 0.0f, 1.0f);
-        private readonly Vector4 _purple = new Vector4(0.639f, 0.2078f, 0.933f, 1f);
-        private readonly Vector4 _blue = new Vector4(0f, 0.439f, 1f, 1f);
-        private readonly Vector4 _green = new Vector4(0.117f, 1f, 0f, 1f);
-        private readonly Vector4 _grey = new Vector4(0.4f, 0.4f, 0.4f, 1f);
-        
+        public static readonly Vector4 Yellow = new Vector4(0.898f, 0.8f, 0.501f, 1f);
+        public static readonly Vector4 Pink = new Vector4(0.886f, 0.408f, 0.659f, 1f);
+        public static readonly Vector4 Orange = new Vector4(1.0f, 0.5019f, 0.0f, 1.0f);
+        public static readonly Vector4 Purple = new Vector4(0.639f, 0.2078f, 0.933f, 1f);
+        public static readonly Vector4 Blue = new Vector4(0f, 0.439f, 1f, 1f);
+        public static readonly Vector4 Green = new Vector4(0.117f, 1f, 0f, 1f);
+        public static readonly Vector4 Grey = new Vector4(0.4f, 0.4f, 0.4f, 1f);
 
         private RaidingTierPerformance RaidingPerformance { get; set; }
         
@@ -55,7 +55,8 @@ namespace FFLogsLookup
             // as an argument but play the game in english please and thank you
             this._titles = _interface.Data.Excel.GetSheet<Lumina.Excel.GeneratedSheets.Title>();
             this._requestOnce = true;
-            this._requestUltOnce = true;
+            this.RaidingPerformance = new RaidingTierPerformance(0);
+            //this._requestUltOnce = true;
         }
 
         private void FormatFightEntryForImGui(Fight f)
@@ -90,7 +91,14 @@ namespace FFLogsLookup
                 this._target.winPosY = inspectWindow->Y;
                 this._target.winHeight = inspectWindow->RootNode->Height;
                 this._target.winWidth = inspectWindow->RootNode->Width;
-                
+                this._target.winScale = inspectWindow->Scale;
+
+                this._target.offsetX = (87) * (this._target.winScale);
+                this._target.offsetY = this._target.winHeight +
+                                       (float) (
+                                           (-50 * Math.Pow(this._target.winScale, 2f)) +
+                                           595 * this._target.winScale
+                                           - 616);
                 var inspectWindowNodeList = inspectWindow->ULDData.NodeList;
                 this._target.homeWorld = Marshal.PtrToStringAnsi(new IntPtr(((AtkTextNode*)inspectWindowNodeList[59])->NodeText.StringPtr));
                 var name = "";
@@ -149,6 +157,12 @@ namespace FFLogsLookup
             
         }
 
+        private void RequestAgain()
+        {
+            // TODO: make the tier parses be requested again whenever the tier is changed so that the character inspect window doesn't have to be reopened after changing stuff
+            return;
+        }
+
         /// <summary>
         /// Returns a color to dye the percentile text with (according to fflogs' website's colors) 
         /// </summary>
@@ -156,12 +170,30 @@ namespace FFLogsLookup
         /// <returns></returns>
         private Vector4 GetColorFromPercentile(int percentile)
         {
-            if (percentile < 25) return _grey;
-            if (percentile < 50) return _green;
-            if (percentile < 75) return _blue;
-            if (percentile < 95) return _purple;
-            if (percentile < 99) return _orange;
-            return percentile < 100 ? _pink : _yellow;
+            if (percentile < 25) return Grey;
+            if (percentile < 50) return Green;
+            if (percentile < 75) return Blue;
+            if (percentile < 95) return Purple;
+            if (percentile < 99) return Orange;
+            return percentile < 100 ? Pink : Yellow;
+        }
+
+        public bool CharacterInspectItemTooltipVisible()
+        {
+            var tooltip = _interface.Framework.Gui.GetAddonByName("Tooltip", 1);
+            if (tooltip.Visible) return false;
+
+            var itemdetail = _interface.Framework.Gui.GetAddonByName("ItemDetail", 1);
+            if (itemdetail.X < this._target.winPosX + this._target.offsetX + this._config.OffsetX)
+            {
+                if (itemdetail.Y + itemdetail.Height - 30 >
+                    this._target.winPosY + this._target.offsetY + this._config.OffsetY)
+                {
+                    return itemdetail.Visible;
+                }
+            }
+            return false;
+
         }
 
         public async void Draw()
@@ -172,6 +204,11 @@ namespace FFLogsLookup
             {
                 this._requestOnce = true;
                 this.RaidingPerformance = new RaidingTierPerformance(0);
+                return;
+            }
+
+            if (CharacterInspectItemTooltipVisible())
+            {
                 return;
             }
             
@@ -191,7 +228,7 @@ namespace FFLogsLookup
                 return;
             }
 
-            if (_config.ShowUltimates)
+            /*if (_config.ShowUltimates)
             {
                 try
                 {
@@ -201,19 +238,19 @@ namespace FFLogsLookup
                         
                     }
                 }
-                catch (Exception e)
-                {
-                    PluginLog.Log(e.Message);
-                }
-            }
+                catch (Exception) { }
+            }*/
             
             // request character's parses data from fflogs
-            if (_requestOnce)
+            if (_requestOnce || _config.forceRefresh)
             {
                 this._requestOnce = false;
-                var par = new FflogsRequestParams(this._target.ToTargetInfo(), false, false);
-                var temp = 
-                    await _fflog.PerformRequest(this._target.ToTargetInfo());
+                _config.Save();
+                var world = FflogRequestsHandler._worlds.Find(w => w.Name.ToString().Equals(this._target.homeWorld));
+                var dc = FflogRequestsHandler._worldDcs.Find(d => d.Name.ToString().Equals(world.DataCenter.Value.Name));
+                var region = FflogRequestsHandler._regionName[dc.Region];
+                this._target.region = region;
+                var temp = await _fflog.PerformRequest(this._target.ToTargetInfo());
                 this.RaidingPerformance = _fflog.Summarize(temp, _target.ToTargetInfo());
             }
             else
@@ -222,27 +259,43 @@ namespace FFLogsLookup
                 {
                     const string windowTitle = "percentiles";
                     ImGuiWindowFlags flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize;
-                    
+
                     if (!this._config.ShowBackground) flags |= ImGuiWindowFlags.NoBackground;
                     // +73, -120 -> offsets to place percentiles right below the character preview window
                     ImGui.SetNextWindowPos(
                         new Vector2(
-                            this._target.winPosX +73 + this._config.OffsetX,
-                            this._target.winPosY + this._target.winHeight -120 + this._config.OffsetY
+                            this._target.winPosX + this._target.offsetX + this._config.OffsetX,
+                            this._target.winPosY + this._target.offsetY + this._config.OffsetY
                         )
                     );
-                    
+
                     ImGui.Begin(windowTitle, flags);
-                    if (this.RaidingPerformance.meta!=null)
+                    ImGui.BeginGroup();
+                    if (this.RaidingPerformance.meta != null)
                     {
                         if (this.RaidingPerformance.meta.erroredProcessing)
                         {
-                            ImGui.PushStyleColor(ImGuiCol.Text, this._grey);
+                            ImGui.PushStyleColor(ImGuiCol.Text, Grey);
                             ImGui.PushFont(UiBuilder.IconFont);
                             ImGui.Text(this.RaidingPerformance.meta.icon);
-                            ImGui.PopFont(); ImGui.SameLine();
+                            ImGui.PopFont();
+                            ImGui.SameLine();
                             ImGui.Text(this.RaidingPerformance.meta.hoverText);
                             ImGui.PopStyleColor();
+                            ImGui.EndGroup();
+                            if (ImGui.IsItemHovered())
+                            {
+                                ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+                            }
+
+                            if (ImGui.IsItemClicked())
+                            {
+                                Process.Start(
+                                    $"https://www.fflogs.com/character/{this._target.region}/{this._target.homeWorld}/{this._target.firstName} {this._target.lastName}");
+                            }
+
+                            ImGui.End();
+                            return;
                         }
                     }
 
@@ -253,72 +306,128 @@ namespace FFLogsLookup
                     
                     foreach (var fight in this.RaidingPerformance.fightsArray)
                     {
+                        
+                        var p1percentile = _config.ShowMedian
+                            ? fight.medianPercentile
+                            : fight.highestPercentile;
                         totalPercentiles += fight.highestPercentile;
-                        ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(fight.highestPercentile));
-                        ImGui.SetCursorPosX(cx+spacing*i);
-                        ImGui.Text(""+( fight.highestPercentile switch
+                        ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(p1percentile));
+                        ImGui.SetCursorPosX(cx + spacing * i);
+                        ImGui.Text("" + (p1percentile switch
                         {
-                            0 => "-",
-                            100 => "★",
-                            _ => fight.highestPercentile
-                        })); ImGui.SameLine();
+                            0 => "·",
+                            //100 => "★",
+                            _ => p1percentile
+                        }));
+                        ImGui.SameLine();
                         ImGui.PopStyleColor();
-                        if (ImGui.IsItemHovered() && fight.kills!=0)
+                        if (ImGui.IsItemHovered() && fight.kills != 0)
                         {
                             ImGui.BeginTooltip();
                             ImGui.Text($"{fight?.getShortName()} ({fight?.job}) (kills: {fight?.kills})");
+                            ImGui.PushStyleColor(ImGuiCol.Text, Grey);
+                            ImGui.Text(_config.ShowMedian ? "Median" : "Best %%");
+                            ImGui.PopStyleColor();
                             ImGui.EndTooltip();
                         }
-                            
+                        
                         if (fight.savage && fight.part2 != null)
                         {
-                            ImGui.SetCursorPosX(cx+(spacing*(float)(i+0.725)));
-                            ImGui.Text("/"); ImGui.SameLine();
-                            ImGui.SetCursorPosX(cx+(spacing*(i+1)));
-                            ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(fight.part2.highestPercentile));
-                            ImGui.Text(""+( fight.part2.highestPercentile switch
+                            var p2percentile = _config.ShowMedian
+                                ? fight.part2.medianPercentile
+                                : fight.part2.highestPercentile;
+                            ImGui.SetCursorPosX(cx + (spacing * (float) (i + 0.725)));
+                            ImGui.Text("/");
+                            ImGui.SameLine();
+                            ImGui.SetCursorPosX(cx + (spacing * (i + 1)));
+                            ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(p2percentile));
+                            ImGui.Text("" + (p2percentile switch
                             {
-                                0 => "-",
+                                0 => "·",
                                 //100 => "★",
-                                _ => fight.part2.highestPercentile
-                            })); ImGui.SameLine();
+                                _ => p2percentile
+                            }));
+                            ImGui.SameLine();
                             ImGui.PopStyleColor();
-                            if (ImGui.IsItemHovered() && fight.kills!=0)
+                            if (ImGui.IsItemHovered() && fight.kills != 0)
                             {
                                 ImGui.BeginTooltip();
                                 ImGui.Text($"{fight.getShortName()} ({fight.part2.job}) (kills: {fight.part2.kills})");
+                                ImGui.PushStyleColor(ImGuiCol.Text, Grey);
+                                ImGui.Text(_config.ShowMedian ? "Median" : "Best %%");
+                                ImGui.PopStyleColor();
                                 ImGui.EndTooltip();
                             }
                         }
-
                         i++;
-
                     }
-                    if ((_config.ShowNormal||_config.ShowOnlyNormal) 
-                        && !this.RaidingPerformance.firstFight.savage 
-                        && (totalPercentiles != 0 || _config.ShowOnlyNormal))
+                    
+                    
+                    ImGui.NewLine();
+                    ImGui.BeginGroup(); // items below parses group 
+                    
+                    var cury = ImGui.GetCursorPosY();
+                    ImGui.SetCursorPosY(cury-25f);
+                    
+                    var showTierNameCond = _config.ShowTierName && _config.CurrentDisplayZoneID != Plugin.LATEST_RAID_ID;
+                    if (showTierNameCond)
                     {
-                        var c = ImGui.GetCursorPosY();
-                        ImGui.NewLine(); ImGui.SetCursorPosY(c+15f);
-                        ImGui.PushStyleColor(ImGuiCol.Text, _grey);
-                        ImGui.Text("Normal");
+                        ImGui.NewLine();
+                        ImGui.PushStyleColor(ImGuiCol.Text, Grey);
+                        ImGui.Text(ConfigUI.zones[_config.CurrentDisplayZoneID].name);
                         ImGui.PopStyleColor();
-                        if (ImGui.IsItemHovered())
+                        ImGui.SameLine();
+                        
+                    }
+
+                    var normalCond = (_config.ShowNormal || _config.ShowOnlyNormal)
+                                     && (!this.RaidingPerformance.firstFight?.savage ?? false)
+                                     && (totalPercentiles != 0 || _config.ShowOnlyNormal);
+                    if (normalCond)
+                    {
+                        if (showTierNameCond)
                         {
-                            ImGui.BeginTooltip();
-                            ImGui.PushTextWrapPos(300f);
-                            ImGui.TextWrapped("The percentiles above were set in the normal version of the tier's encounters.");
-                            ImGui.PopTextWrapPos();
-                            ImGui.EndTooltip();
+                            var curx = ImGui.GetCursorPosX();
+                            ImGui.SetCursorPosX(curx-5f);
                         }
-                        ImGui.SetCursorPosY(c);
+                        else
+                        {
+                            ImGui.SetCursorPosY(cury-5f);
+                        }
+                        
+                        ImGui.PushStyleColor(ImGuiCol.Text, Grey);
+                        ImGui.Text("(Normal)");
+                        ImGui.PopStyleColor();
+                    }
+                    ImGui.EndGroup();
+                    if (ImGui.IsItemHovered() && normalCond)
+                    {
+                        ImGui.BeginTooltip();
+                        ImGui.PushTextWrapPos(250f);
+                        ImGui.TextWrapped(
+                            $"The percentiles above were set in the normal version of {ConfigUI.zones[_config.CurrentDisplayZoneID].name}.");
+                        ImGui.PopTextWrapPos();
+                        ImGui.EndTooltip();
+                    }
+                    
+                    ImGui.EndGroup();
+                    if (ImGui.IsItemHovered())
+                    {
+                        ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+                    }
+
+                    if (ImGui.IsItemClicked())
+                    {
+                        Process.Start(
+                            $"https://www.fflogs.com/character/{this._target.region}/{this._target.homeWorld}/{this._target.firstName} {this._target.lastName}" +
+                            (_config.CurrentDisplayZoneID != Plugin.LATEST_RAID_ID ? $"?zone={_config.CurrentDisplayZoneID}" : ""));
                     }
 
                     ImGui.End();
                 }
                 catch (Exception e)
                 {
-                    PluginLog.Log(e.Message);
+                    PluginLog.Log(e.Message); // there shouldn't be any problems now :) i think i fixed most of them...
                 }
             }
         }
@@ -336,6 +445,10 @@ namespace FFLogsLookup
             public float winWidth;
             public int winPosX;
             public int winPosY;
+            public float winScale;
+            public float offsetX;
+            public float offsetY;
+            public string region;
 
             public TargetInfo ToTargetInfo()
             {

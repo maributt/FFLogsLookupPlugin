@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Plugin;
@@ -18,6 +21,9 @@ namespace FFLogsLookup
         private bool ShowNormal;
         private bool ShowOnlyNormal;
         private bool ShowUltimates;
+        private bool ShowTierName;
+
+        private int CurrentDisplayTier;        
         private string client_id;
         private string client_secret;
         public Vector4 grey = new Vector4(1f, 1f, 1f, 0.6f);
@@ -33,6 +39,7 @@ namespace FFLogsLookup
         private string workingId;
         private string workingSecret;
         private bool InitialDrawReq;
+        private bool PercentileShown;
         
         //offsets for draw
         private float labeloffset = -10f;
@@ -41,7 +48,53 @@ namespace FFLogsLookup
         private float rightBoundOffset = 120f;
         private float credsOffset = 100f;
         private DalamudPluginInterface Interface;
+        
+        public static  Dictionary<int, ZoneDesc> zones = new Dictionary<int, ZoneDesc>() {
+            { 38, new ZoneDesc("Eden's Promise")},
+            { 33, new ZoneDesc("Eden's Verse")},
+            { 29, new ZoneDesc("Eden's Gate")},
+            { 25, new ZoneDesc("Omega: Alphascape")}, // below this line don't work yet, something to do with Summarize() (generalize it more, more checks, etc)
+            { 21, new ZoneDesc("Omega: Sigmascape")},
+            { 17, new ZoneDesc("Omega: Deltascape")},
+            { 37, new ZoneDesc("Trials III (Extreme)", "Emerald Weapon (I&II), Diamond Weapon")},
+            { 34, new ZoneDesc("Trials II (Extreme)", "Ruby Weapon (I&II), Varis Yae Galvus, Warrior of Light")},
+            { 28, new ZoneDesc("Trials I (Extreme)", "Titania, Innocence, Hades")}
+        };
 
+        public class ZoneDesc
+        {
+            public string name;
+            public string desc;
+            public ZoneDesc(string name, string desc)
+            {
+                this.name = name;
+                this.desc = desc;
+            }
+
+            public ZoneDesc(string name)
+            {
+                this.name = name;
+                this.desc = null;
+            }
+        }
+        public static string[] zoneNames = zones.Values.Select(zDesc => zDesc.name).ToArray();
+        public static int[] zoneIDs = zones.Keys.ToArray();
+
+        public static int[] SavageZoneIDs = new[]
+        {
+            38, 
+            33, 
+            29,
+        };
+        public static int[] SavageZoneNoDiffFilterIDs = new[]
+        {
+            25, // Alphascape (Savage) 
+            21, // Sigmascape (Savage)
+            17, // Deltascape (Savage)
+            13, // Creator (Savage)
+            10, // Midas (Savage)
+            7,  // Gordias (Savage)
+        };
         public ConfigUI(DalamudPluginInterface pluginInterface, Configuration config, FflogRequestsHandler fflog)
         {
             this.config = config;
@@ -51,8 +104,11 @@ namespace FFLogsLookup
             this.ShowNormal = config.ShowNormal;
             this.ShowUltimates = config.ShowUltimates;
             this.ShowBackground = config.ShowBackground;
-            this.client_id = config.client_id;
-            this.client_secret = config.client_secret;
+            this.client_id = config.client_id ?? "";
+            this.client_secret = config.client_secret ?? "";
+            this.PercentileShown = config.ShowMedian;
+            this.ShowTierName = config.ShowTierName;
+            this.CurrentDisplayTier = Array.IndexOf(zoneNames, zones[config.CurrentDisplayZoneID]);
             this.fflog = fflog;
             this.Interface = pluginInterface;
         }
@@ -74,6 +130,7 @@ namespace FFLogsLookup
             }
 
             InitialDrawReq = true;
+            IsVisible = true;
             
             // this is such a mess but oh well
             ImGui.Begin("initial setup##idfkkkhelpme", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize);
@@ -197,7 +254,7 @@ namespace FFLogsLookup
                 ImGui.SetCursorPosY(cy);
                 ImGui.SetCursorPosX(cx+rightOffset+rightBoundOffset);
                 ImGui.SetCursorPosX(cx+labeloffset);
-                ImGui.Text("Parses UI Settings");
+                ImGui.Text("Parse Settings");
                 ImGui.NewLine();
                 ImGui.SetCursorPosX(cx);
                 cy = ImGui.GetCursorPosY();
@@ -208,6 +265,7 @@ namespace FFLogsLookup
                 if (ImGui.Checkbox("##background", ref ShowBackground))
                 {
                     config.ShowBackground = ShowBackground;
+                    config.Save();
                 }
                 ImGui.SetCursorPosX(cx);
 
@@ -217,7 +275,24 @@ namespace FFLogsLookup
                 if (ImGui.Checkbox("##nm", ref ShowNormal))
                 {
                     config.ShowNormal = ShowNormal;
+                    config.Save(true);
                 }
+                ImGui.SetCursorPosX(cx);
+                
+                // select highest/avg
+                ImGui.Text("Show highest or median percentile"); ImGui.SameLine();
+                ImGui.SetCursorPosX(cx+offset);
+                if (ImGui.Checkbox("(  showing##bestPercentile", ref PercentileShown))
+                {
+                    config.ShowMedian = PercentileShown;
+                    config.Save();
+                }
+                
+                ImGui.SameLine(); 
+                ImGui.PushStyleColor(ImGuiCol.Text, PercentileShown ? PluginUi.Purple : PluginUi.Yellow);
+                ImGui.Text(PercentileShown ? "median" : "highest");
+                ImGui.PopStyleColor(); ImGui.SameLine(); 
+                ImGui.Text(")");
                 ImGui.SetCursorPosX(cx);
 
                 /* stuff that i havent implemented yet
@@ -253,6 +328,7 @@ namespace FFLogsLookup
                 if (ImGui.DragInt("##xoffset", ref OffsetX, 1))
                 {
                     config.OffsetX = OffsetX;
+                    config.Save();
                 }
                 
                 //y
@@ -263,14 +339,45 @@ namespace FFLogsLookup
                 if (ImGui.DragInt("##yoffset", ref OffsetY, 1))
                 {
                     config.OffsetY = OffsetY;
+                    config.Save();
                 }
                 ImGui.SetCursorPosY(cy_b);
+                ImGui.NewLine();
+                ImGui.Separator();
+                ImGui.NewLine();
+                
+                // tier selector
+                //ImGui.Combo("Select tier to display##tierSelector", "test");*
+                ImGui.SetCursorPosX(cx);
+                ImGui.Text("Select tier to display"); ImGui.SameLine();
+                ImGui.SetNextItemWidth(200f);
+                if (ImGui.Combo("##tierDisplayed", ref CurrentDisplayTier, zoneNames, zoneNames.Length))
+                {
+                    config.CurrentDisplayZoneID = zoneIDs[CurrentDisplayTier];
+                    config.Save(true);
+                };
+                if (ImGui.IsItemHovered())
+                {
+                    if (zones[config.CurrentDisplayZoneID].desc != null)
+                    {
+                        ImGui.BeginTooltip();
+                        ImGui.Text(zones[config.CurrentDisplayZoneID].desc);
+                        ImGui.EndTooltip();
+                    }
+                }
+                ImGui.SetCursorPosX(cx);
+                ImGui.Text("Display tier name under percentiles?"); ImGui.SameLine();
+                if (ImGui.Checkbox("##showTierName", ref ShowTierName))
+                {
+                    config.ShowTierName = ShowTierName;
+                    config.Save();
+                }
+                
                 //separator
                 ImGui.NewLine();
                 ImGui.Separator();
                 ImGui.NewLine();
-                // checkboxes
-                
+
                 //client id and secret inputs
                 ImGui.SetCursorPosX(cx+labeloffset);
                 ImGui.Text("FFLogs API Settings");
@@ -296,7 +403,6 @@ namespace FFLogsLookup
                     this.testReqSent = false;
                     this.testReqPending = false;
                     this.testReqSucceeded = false;
-                    PluginLog.Log($"client id now = {config.client_id}");
                 }
                 ImGui.SetCursorPosX(cx);
 
@@ -329,7 +435,6 @@ namespace FFLogsLookup
                     this.testReqSent = false;
                     this.testReqPending = false;
                     this.testReqSucceeded = false;
-                    PluginLog.Log($"client secret now = {config.client_secret}");
                 }
                 ImGui.SetCursorPosX(cx);
 
@@ -363,6 +468,7 @@ namespace FFLogsLookup
                             config.initialConfig = false; // dont care im putting this here
                             config.client_id = this.workingId;
                             config.client_secret = this.workingSecret;
+                            config.Save();
                         }
                         else
                         {
@@ -392,18 +498,8 @@ namespace FFLogsLookup
                 {
                     ImGui.NewLine();
                 }
-
-                ImGui.SetCursorPosX(cx+credsOffset);
-                if (ImGui.Button("Save"))
-                {
-                    this.IsVisible = false;
-                    this.testReqSent = false;
-                    config.client_id = this.workingId;
-                    config.client_secret = this.workingSecret;
-                    config.Save();
-                }
-
-                ImGui.SameLine();
+                ImGui.NewLine();
+                ImGui.SetCursorPosX(cx);
                 ImGui.PushFont(UiBuilder.IconFont);
                 if (ImGui.Button(FontAwesomeIcon.Times.ToIconString()))
                 {

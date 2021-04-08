@@ -30,6 +30,7 @@ namespace HelperTypes
     public class Meta
     {
         public string hoverText;
+        public string longHoverText;
         public string icon = "";
         public bool erroredProcessing = false;
 
@@ -61,10 +62,10 @@ namespace HelperTypes
 
         public RaidingTierPerformance(Fight[] fights)
         {
-            this.firstFight = fights[0];
-            this.secondFight = fights[1];
-            this.thirdFight = fights[2];
-            this.fourthFight = fights[3];
+            if (fights.Length >= 1) this.firstFight = fights[0];
+            if (fights.Length >= 2) this.secondFight = fights[1];
+            if (fights.Length >= 3) this.thirdFight = fights[2];
+            if (fights.Length >= 4) this.fourthFight = fights[3];
             this.fightsArray = fights;
         }
 
@@ -100,7 +101,15 @@ namespace HelperTypes
 
         public static Dictionary<int, string> ShortNameFromId = new Dictionary<int, string>()
             {
-                { 73, "e9"}, { 74, "e10" }, { 75, "e11" }, { 76, "e12"}, {77, "e12s p2"}
+                // Shadowbringers
+                /* Promise */ { 73, "e9" }, { 74, "e10" }, { 75, "e11" }, { 76, "e12"}, {77, "e12s p2"},
+                /* Verse   */ { 69, "e5" }, { 70, "e6" }, { 71, "e7" }, { 72, "e8"},
+                /* Gate    */ { 65, "e1" }, { 66, "e2" }, { 67, "e3" }, { 68, "e4"},
+
+                // Stormblood
+                /* Alphascape */ { 60, "o9" }, { 61, "o10" }, { 62, "o11" }, { 63, "o12" }, { 64, "o12s p2" }, 
+                /* Sigmascape */ { 51, "o5" }, { 52, "o6" }, { 53, "o7" }, { 54, "o8" }, { 55, "o8s p2" }, 
+                /* Deltascape */ { 42, "o1" }, { 43, "o2" }, { 44, "o3" }, { 45, "o4" }, { 46, "o4s p2" }, 
             };
 
         public Fight(Meta meta, string name, int encounterId, string job, float rdps, int kills, int medianPercentile, int highestPercentile, bool savage)
@@ -131,7 +140,8 @@ namespace HelperTypes
         public string getShortName()
         {
             ShortNameFromId.TryGetValue(this.id, out string shortName);
-            return shortName + (this.savage ? "s" : "");
+            var finalname = shortName + (this.savage ? "s" : "");
+            return finalname == "" ? this.bossname : finalname;
         }
 
         public int getHighestAvgForParts()
@@ -144,6 +154,10 @@ namespace HelperTypes
             return avg;
         }
 
+        public override string ToString()
+        {
+            return $"{this.getShortName()} - {this.bossname} : {this.job} ({this.kills}) {this.highestPercentile}/{this.medianPercentile}";
+        }
     }
 
     public class TargetInfo
@@ -249,6 +263,11 @@ namespace HelperTypes
         public string? spec { get; set; }
         public string? bestSpec { get; set; }
         public float bestAmount { get; set; }
+
+        public override string ToString()
+        {
+            return $"( encID:{encounter?.id}, encName:{encounter?.name} ) - ( hi:{rankPercent}, med:{medianPercent} ) - (totalKills:{totalKills}, bestSpec:{bestSpec})";
+        }
     }
 
     public class TEncounter
