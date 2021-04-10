@@ -321,8 +321,6 @@ namespace FFLogsLookup
                     {
                         if (btParsesLenDiff > 0) // bottom text is also larger than parses, align header + parses to bottom text
                         {
-                            
-                            PluginLog.Log("align header and parses to bottom text");
                             ((TextPayload) tierEntries[headerIndex]).Text = new string(' ', (int)btHeaderLenDiff) +
                                                                             ((TextPayload) tierEntries[headerIndex])
                                                                             .Text;
@@ -332,7 +330,6 @@ namespace FFLogsLookup
                         }
                         else // parses is the largest string, align bottom text to parses
                         {
-                            PluginLog.Log("align bottom text to parses");
                             ((TextPayload) tierEntries[tierEntries.Count - 2]).Text = 
                                 new string(' ', Math.Abs(btParsesLenDiff/2)) + 
                                 ((TextPayload) tierEntries[tierEntries.Count - 2]).Text;
@@ -340,7 +337,6 @@ namespace FFLogsLookup
                     }
                     else // align bottom text to header
                     {
-                        PluginLog.Log("align bottom text to header");
                         ((TextPayload) tierEntries[tierEntries.Count - 2]).Text = 
                             new string(' ', Math.Abs(btHeaderLenDiff/2)) + 
                             ((TextPayload) tierEntries[tierEntries.Count - 2]).Text;

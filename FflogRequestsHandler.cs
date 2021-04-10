@@ -242,16 +242,15 @@ public class FflogRequestsHandler
         foreach (var ranking in response.data.characterData.character.raidingTierData.rankings)
         {
             Fight processedFight = null;
+            var isSavage =
+                ConfigUI.SavageZoneNoDiffFilterIDs.Contains(response.data.characterData.character.raidingTierData.zone); // the zone doesn't have a difficulty field if true
+            var isExtreme = ConfigUI.ExTrialIDs.Contains(response.data.characterData.character.raidingTierData.zone);
             if (ranking.totalKills == 0)
             {
-                var isSavage =
-                    ConfigUI.SavageZoneNoDiffFilterIDs.Contains(response.data.characterData.character.raidingTierData.zone); // the zone doesn't have a difficulty field if true
-                processedFight = new Fight(ranking.encounter.id, (response.data.characterData.character.raidingTierData?.difficulty == 101 || isSavage));
+                processedFight = new Fight(ranking.encounter.id, (response.data.characterData.character.raidingTierData?.difficulty == 101 || isSavage), isExtreme);
             }
             else
             {
-                var isSavage =
-                    ConfigUI.SavageZoneNoDiffFilterIDs.Contains(response.data.characterData.character.raidingTierData.zone);
                 processedFight = new Fight(
                     new Meta(ranking.encounter.name),
                     ranking.encounter.name,
@@ -261,7 +260,8 @@ public class FflogRequestsHandler
                     ranking.totalKills,
                     (int)Math.Floor(ranking.medianPercent ?? 0),
                     (int)Math.Floor(ranking.rankPercent ?? 0),
-                    (response.data.characterData.character.raidingTierData?.difficulty == 101 || isSavage)
+                    (response.data.characterData.character.raidingTierData?.difficulty == 101 || isSavage),
+                    isExtreme
                     );
             }
 

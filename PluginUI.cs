@@ -310,13 +310,14 @@ namespace FFLogsLookup
                         var p1percentile = _config.ShowMedian
                             ? fight.medianPercentile
                             : fight.highestPercentile;
+                        
                         totalPercentiles += fight.highestPercentile;
                         ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(p1percentile));
                         ImGui.SetCursorPosX(cx + spacing * i);
                         ImGui.Text("" + (p1percentile switch
                         {
                             0 => "·",
-                            //100 => "★",
+                            100 => "★",
                             _ => p1percentile
                         }));
                         ImGui.SameLine();
@@ -344,7 +345,7 @@ namespace FFLogsLookup
                             ImGui.Text("" + (p2percentile switch
                             {
                                 0 => "·",
-                                //100 => "★",
+                                100 => "★",
                                 _ => p2percentile
                             }));
                             ImGui.SameLine();
@@ -352,7 +353,7 @@ namespace FFLogsLookup
                             if (ImGui.IsItemHovered() && fight.kills != 0)
                             {
                                 ImGui.BeginTooltip();
-                                ImGui.Text($"{fight.getShortName()} ({fight.part2.job}) (kills: {fight.part2.kills})");
+                                ImGui.Text($"{fight.part2.getShortName()} ({fight.part2.job}) (kills: {fight.part2.kills})");
                                 ImGui.PushStyleColor(ImGuiCol.Text, Grey);
                                 ImGui.Text(_config.ShowMedian ? "Median" : "Best %%");
                                 ImGui.PopStyleColor();
@@ -379,10 +380,10 @@ namespace FFLogsLookup
                         ImGui.SameLine();
                         
                     }
-
                     var normalCond = (_config.ShowNormal || _config.ShowOnlyNormal)
                                      && (!this.RaidingPerformance.firstFight?.savage ?? false)
-                                     && (totalPercentiles != 0 || _config.ShowOnlyNormal);
+                                     && (totalPercentiles != 0 || _config.ShowOnlyNormal)
+                                     && !this.RaidingPerformance.firstFight.extreme;
                     if (normalCond)
                     {
                         if (showTierNameCond)

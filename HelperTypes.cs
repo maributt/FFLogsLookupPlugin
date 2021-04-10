@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using FFLogsLookup;
 
 namespace HelperTypes
 {
@@ -96,6 +97,7 @@ namespace HelperTypes
         public int highestPercentile;
         public int id;
         public bool savage;
+        public bool extreme;
         public Fight part2;
         public Meta meta;
 
@@ -112,7 +114,7 @@ namespace HelperTypes
                 /* Deltascape */ { 42, "o1" }, { 43, "o2" }, { 44, "o3" }, { 45, "o4" }, { 46, "o4s p2" }, 
             };
 
-        public Fight(Meta meta, string name, int encounterId, string job, float rdps, int kills, int medianPercentile, int highestPercentile, bool savage)
+        public Fight(Meta meta, string name, int encounterId, string job, float rdps, int kills, int medianPercentile, int highestPercentile, bool savage, bool extreme)
         {
             this.bossname = name;
             this.id = encounterId;
@@ -123,25 +125,30 @@ namespace HelperTypes
             this.highestPercentile = highestPercentile;
             this.savage = savage;
             this.meta = meta;
+            this.extreme = extreme;
         }
 
         public Fight(int percent)
         {
             this.highestPercentile = percent;
+            this.savage = true;
+            this.extreme = false;
         }
 
-        public Fight(int encounterId, bool savage)
+        public Fight(int encounterId, bool savage, bool extreme)
         {
             this.id = encounterId;
             this.kills = 0;
             this.savage = savage;
+            this.extreme = extreme;
         }
 
         public string getShortName()
         {
             ShortNameFromId.TryGetValue(this.id, out string shortName);
-            var finalname = shortName + (this.savage ? "s" : "");
-            return finalname == "" ? this.bossname : finalname;
+            if (!FflogRequestsHandler.GetFirstPartForFight(this.id, out _))
+                shortName += (this.savage ? "s" : "");
+            return shortName == "" ? this.bossname : shortName;
         }
 
         public int getHighestAvgForParts()

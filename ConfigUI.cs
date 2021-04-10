@@ -88,12 +88,17 @@ namespace FFLogsLookup
         };
         public static int[] SavageZoneNoDiffFilterIDs = new[]
         {
-            25, // Alphascape (Savage) 
+            25, // Alphascape (Savage)
             21, // Sigmascape (Savage)
             17, // Deltascape (Savage)
             13, // Creator (Savage)
             10, // Midas (Savage)
             7,  // Gordias (Savage)
+        };
+
+        public static int[] ExTrialIDs = new[]
+        {
+            37, 34, 28
         };
         public ConfigUI(DalamudPluginInterface pluginInterface, Configuration config, FflogRequestsHandler fflog)
         {
@@ -108,7 +113,7 @@ namespace FFLogsLookup
             this.client_secret = config.client_secret ?? "";
             this.PercentileShown = config.ShowMedian;
             this.ShowTierName = config.ShowTierName;
-            this.CurrentDisplayTier = Array.IndexOf(zoneNames, zones[config.CurrentDisplayZoneID]);
+            this.CurrentDisplayTier = config.TierIndex;
             this.fflog = fflog;
             this.Interface = pluginInterface;
         }
@@ -354,6 +359,7 @@ namespace FFLogsLookup
                 if (ImGui.Combo("##tierDisplayed", ref CurrentDisplayTier, zoneNames, zoneNames.Length))
                 {
                     config.CurrentDisplayZoneID = zoneIDs[CurrentDisplayTier];
+                    config.TierIndex = CurrentDisplayTier;
                     config.Save(true);
                 };
                 if (ImGui.IsItemHovered())
@@ -506,15 +512,24 @@ namespace FFLogsLookup
                     this.IsVisible = false;
                 }
                 ImGui.PopFont();
+                if (ImGui.Button("Redo initial setup"))
+                {
+                    
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.BeginTooltip();
+                    ImGui.PushTextWrapPos(250f);
+                    ImGui.TextWrapped("Click this if either your client id or secret doesn't appear in the textboxes above!");
+                    ImGui.PopTextWrapPos();
+                    ImGui.EndTooltip();
+                }
                 ImGui.SetCursorPosX(cx);
                 cy = ImGui.GetCursorPosY() + 10;
                 ImGui.SetCursorPosY(cy);
                 ImGui.End();
             }
-            catch (Exception e)
-            {
-                PluginLog.Log(e.Message);
-            }
+            catch (Exception) { }
 
         }
          
