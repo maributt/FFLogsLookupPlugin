@@ -231,13 +231,11 @@ namespace FFLogsLookup
             ImGui.Text("in the config window!");
             ImGui.NewLine();
             
-            ImGui.Text("Then just click the \"Test connection to API\" button and you're good to go!");
-            ImGui.NewLine();
-            ImGui.Text("If for some reason the config window is not displaying properly try clicking"); ImGui.SameLine();
-            if (ImGui.Button("here##buttong"))
-            {
-                this.config = new Configuration();
-            }
+            ImGui.Text("Then just click the"); ImGui.SameLine();
+            ImGui.PushStyleColor(ImGuiCol.Text, hlCol);
+            ImGui.Text("Test connection to API"); ImGui.SameLine();
+            ImGui.PopStyleColor();
+            ImGui.Text("button and you're good to go!");
             ImGui.NewLine();
             ImGui.End();
         }
@@ -458,6 +456,7 @@ namespace FFLogsLookup
                 }
 
                 ImGui.SetCursorPosX(cx+credsOffset);
+                if (config.initialConfig) ImGui.PushStyleColor(ImGuiCol.Text, hlCol);
                 if (ImGui.Button("Test connection to API"))
                 {
                     this.testReqSent = false;
@@ -484,6 +483,7 @@ namespace FFLogsLookup
                         }
                     });
                 }
+                if (config.initialConfig) ImGui.PopStyleColor();
                 ImGui.SetCursorPosX(cx);
 
                 ImGui.SameLine();
@@ -511,19 +511,31 @@ namespace FFLogsLookup
                 {
                     this.IsVisible = false;
                 }
-                ImGui.PopFont();
-                if (ImGui.Button("Redo initial setup"))
+                ImGui.PopFont(); 
+                ImGui.SameLine();
+                if (!config.initialConfig && (config?.client_id == "" || config?.client_secret == ""))
                 {
-                    
+                    if (ImGui.Button("Redo initial setup"))
+                    {
+                        config.initialConfig = true;
+                        this.Interface.UiBuilder.OnBuildUi += DrawInitialSetup;
+                    }
+                    if (ImGui.IsItemHovered())
+                    {
+                        ImGui.BeginTooltip();
+                        ImGui.PushTextWrapPos(250f);
+                        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0f, 0f, 1f));
+                        ImGui.TextWrapped("Click this if either your client id or secret doesn't appear in the textboxes above!\n\nIf you click this by accident just click \"Test connection to API\" to make the menu go away again.");
+                        ImGui.PopStyleColor();
+                        ImGui.PopTextWrapPos();
+                        ImGui.EndTooltip();
+                    }
                 }
-                if (ImGui.IsItemHovered())
+                else
                 {
-                    ImGui.BeginTooltip();
-                    ImGui.PushTextWrapPos(250f);
-                    ImGui.TextWrapped("Click this if either your client id or secret doesn't appear in the textboxes above!");
-                    ImGui.PopTextWrapPos();
-                    ImGui.EndTooltip();
+                    ImGui.Text("\n");
                 }
+                
                 ImGui.SetCursorPosX(cx);
                 cy = ImGui.GetCursorPosY() + 10;
                 ImGui.SetCursorPosY(cy);
