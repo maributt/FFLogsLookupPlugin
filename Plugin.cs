@@ -3,14 +3,11 @@ using FFLogsLookup.Attributes;
 using System;
 using Dalamud.Game.ClientState.Actors.Types;
 using System.Collections.Generic;
-using RestSharp;
-using Dalamud.Game.Chat;
-using Dalamud.Game.Chat.SeStringHandling;
-using SeString = Dalamud.Game.Chat.SeStringHandling.SeString;
-using Dalamud.Game.Chat.SeStringHandling.Payloads;
 using System.Linq;
 using HelperTypes;
-using System.IO;
+using Dalamud.Game.Text;
+using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
 
 namespace FFLogsLookup
 {
@@ -238,7 +235,7 @@ namespace FFLogsLookup
             }
             
             FflogsApiResponse response = await fflog.PerformRequest(targetInfo);
-            var tierSummary = fflog.Summarize(response, targetInfo);
+            var tierSummary = fflog.Summarize(response);
             var fString = "";
             
             // if an "error" occurred during Summarize (character not found, hidden logs)
@@ -358,8 +355,6 @@ namespace FFLogsLookup
                         {
                             if (btParsesLenDiff > 0) // bottom text is also larger than parses, align header + parses to bottom text
                             {
-                                
-                                PluginLog.Log("align header and parses to bottom text");
                                 ((TextPayload) tierEntries[headerIndex]).Text = new string(' ', (int)btHeaderLenDiff) +
                                                                                 ((TextPayload) tierEntries[headerIndex])
                                                                                 .Text;
@@ -369,7 +364,6 @@ namespace FFLogsLookup
                             }
                             else // parses is the largest string, align bottom text to parses
                             {
-                                PluginLog.Log("align bottom text to parses");
                                 ((TextPayload) tierEntries[tierEntries.Count - 2]).Text = 
                                     new string(' ', Math.Abs(btParsesLenDiff/2)) + 
                                     ((TextPayload) tierEntries[tierEntries.Count - 2]).Text;
@@ -377,7 +371,6 @@ namespace FFLogsLookup
                         }
                         else // align bottom text to header
                         {
-                            PluginLog.Log("align bottom text to header");
                             ((TextPayload) tierEntries[tierEntries.Count - 2]).Text = 
                                 new string(' ', Math.Abs(btHeaderLenDiff)) + 
                                 ((TextPayload) tierEntries[tierEntries.Count - 2]).Text;

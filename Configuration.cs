@@ -14,6 +14,8 @@ namespace FFLogsLookup
         public bool ShowTierName = true;
         public int CurrentDisplayZoneID = ConfigUI.zones.Keys.ToArray()[0];
         public int TierIndex = 0;
+
+        public bool SnapshotActorExperimental = true;
         
         public int OffsetX;
         public int OffsetY;

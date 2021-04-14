@@ -1,0 +1,7 @@
+﻿{
+  "Name": "FFLogs Lookup",
+  "Author": "maributt",
+  "Description": "Display an inspected character's logs directly in-game!",
+  "RepoUrl": "https://github.com/maributt/FFLogsLookupPlugin",
+  "DalamudApiLevel": 3
+}

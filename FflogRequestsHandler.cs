@@ -21,6 +21,9 @@ public class FflogRequestsHandler
     public string AccessTokenUrl = "https://www.fflogs.com/oauth/token";
     public string ClientEndpoint = "https://www.fflogs.com/api/v2/client/";
 
+    public const string LOGS_NOT_FOUND = "Logs not found.";
+    public const string HIDDEN_LOGS = "Hidden logs.";
+
     public static List<Lumina.Excel.GeneratedSheets.World> _worlds;
     public static List<Lumina.Excel.GeneratedSheets.WorldDCGroupType> _worldDcs;
     public static string[] _regionName = new string[4] { "INVALID", "JP", "NA", "EU" };
@@ -133,6 +136,40 @@ public class FflogRequestsHandler
             return true;
         }
     }
+
+    public async Task<dynamic> PerformUltRequest(PluginUi.InspectInfo iInfo)
+    {
+        
+        var world = _worlds.Find(w => w.Name.ToString().ToLower().Equals(iInfo.homeWorld.ToLower()));
+        var dc = _worldDcs.Find(d => d.Name.ToString().Equals(world.DataCenter.Value.Name));
+        var region = _regionName[dc.Region];
+
+        var prettifiedReq = "{\"query\":" +
+                            "\"query characterData {\\n" +
+                            "  characterData {\\n" +
+                            "    character(name: \\\""+iInfo.firstName+" "+iInfo.lastName+"\\\", serverSlug: \\\""+iInfo.homeWorld+"\\\", serverRegion: \\\""+region+"\\\") {\\n" +
+                            "      hidden\\n" +
+                            (iInfo.reqTea ? "      Tea: zoneRankings(zoneID: 32)\\n" : "") +
+                            (iInfo.reqUcob||iInfo.reqUwu ? "      UcobUwuNew: zoneRankings(zoneID: 30)\\n" : "")+
+                            (iInfo.reqUcob ? "      UcobOld: zoneRankings(zoneID: 19)\\n" : "")+
+                            (iInfo.reqUwu ? "      UwuOld: zoneRankings(zoneID: 23)\\n": "") +
+                            "    }\\n" +
+                            "  }\\n" +
+                            "}\\n\"," +
+                            "\"operationName\":\"characterData\"" +
+                            "}";
+
+        var request = new RestRequest(Method.POST)
+            .AddHeader("Content-Type", "application/json")
+            .AddHeader("Authorization", $"Bearer {await GetBearerToken()}")
+            .AddParameter("application/json", prettifiedReq, ParameterType.RequestBody);
+        
+        var cancellationTokenSource = new CancellationTokenSource();
+        var response = await Client.ExecuteAsync(request, cancellationTokenSource.Token);
+        PluginLog.Log(response.Content);
+        return JsonConvert.DeserializeObject(response.Content);
+        
+    }
     
     public async Task<FflogsApiResponse> PerformRequest(TargetInfo player)
     {
@@ -203,20 +240,59 @@ public class FflogRequestsHandler
         return false;
     }
 
+    public List<Fight> SummarizeUlt(dynamic ults, PluginUi.InspectInfo iInfo, out bool correct)
+    {
+        correct = false; // GUILTY UNTIL PROVEN INNOCENT
+        var ultimates = new List<Fight>();
+        var meta = new Meta {erroredProcessing = false};
+        foreach (var fight in new List<dynamic>()
+        {
+            ults.data.characterData.character?.Tea,
+            ults.data.characterData.character?.UcobUwuNew,
+            ults.data.characterData.character?.UcobOld,
+            ults.data.characterData.character?.UwuOld,
+        })
+        {
+            PluginLog.Log("is fight null = "+(fight==null));
+            if (fight != null)
+                foreach (var entry in fight?.rankings)
+                {
+                    PluginLog.Log("has player cleared the fight? "+((int)entry.totalKills == 0));
+                    /*var f = new Fight(entry.encounter.id, false, false);
+                    if (entry.totalKills != 0) 
+                        f = new Fight(
+                            meta,
+                            entry.encounter.name,
+                            entry.encounter.id,
+                            entry.bestSpec,
+                            entry.bestAmount,
+                            entry.totalKills,
+                            (int)Math.Floor(entry.medianPercent ?? -1),
+                            (int)Math.Floor(entry.rankPercent  ?? -1),
+                            false, false
+                        );
+                    PluginLog.Log(f.ToString());
+                    ultimates.Add(f);*/
+                }   
+        }
+
+        return ultimates;
+    }
+    
     /// <summary>
     /// Summarizes a `FflogsApiResponse` and `TargetInfo` object into a more easily exploitable one systematically exposing 4 fight entries. 
     /// </summary>
     /// <param name="response">The FflogApiResponse object</param>
     /// <param name="target"></param>
     /// <returns></returns>
-    public RaidingTierPerformance Summarize(FflogsApiResponse response, TargetInfo target)
+    public RaidingTierPerformance Summarize(FflogsApiResponse response)
     {
         var meta = new Meta {erroredProcessing = false};
 
         if (response.data.characterData.character == null)
         {
             //meta.hoverText = ;
-            meta.hoverText = "Logs not found.";
+            meta.hoverText = LOGS_NOT_FOUND;
             meta.longHoverText =
                 $"Couldn't find logs for _";
             meta.icon = FontAwesomeIcon.QuestionCircle.ToIconString();
@@ -226,7 +302,7 @@ public class FflogRequestsHandler
         }
         if (response.data.characterData.character.hidden)
         {
-            meta.hoverText = "Hidden logs.";
+            meta.hoverText = HIDDEN_LOGS;
             meta.longHoverText = $"_'s logs are hidden.";
             meta.icon = FontAwesomeIcon.EyeSlash.ToIconString();
             meta.erroredProcessing = true;

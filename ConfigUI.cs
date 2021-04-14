@@ -40,6 +40,7 @@ namespace FFLogsLookup
         private string workingSecret;
         private bool InitialDrawReq;
         private bool PercentileShown;
+        private bool SnapshotActor;
         
         //offsets for draw
         private float labeloffset = -10f;
@@ -114,6 +115,7 @@ namespace FFLogsLookup
             this.PercentileShown = config.ShowMedian;
             this.ShowTierName = config.ShowTierName;
             this.CurrentDisplayTier = config.TierIndex;
+            this.SnapshotActor = config.SnapshotActorExperimental;
             this.fflog = fflog;
             this.Interface = pluginInterface;
         }
@@ -512,6 +514,20 @@ namespace FFLogsLookup
                     this.IsVisible = false;
                 }
                 ImGui.PopFont(); 
+                ImGui.SameLine();
+                if (ImGui.Checkbox("Experimental: snapshot target's actor obj##snapshot", ref SnapshotActor))
+                {
+                    config.SnapshotActorExperimental = SnapshotActor;
+                }
+
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.BeginTooltip();
+                    ImGui.PushStyleColor(ImGuiCol.Text, grey);
+                    ImGui.Text("Feature isn't implemented yet so this button doesn't really do anything\nfor now it just tells you if the person you inspect visibly has cleared an ultimate");
+                    ImGui.PopStyleColor();
+                    ImGui.EndTooltip();
+                }
                 ImGui.SameLine();
                 if (!config.initialConfig && (config?.client_id == "" || config?.client_secret == ""))
                 {

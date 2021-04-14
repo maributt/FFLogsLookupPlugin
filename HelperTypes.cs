@@ -228,6 +228,50 @@ namespace HelperTypes
         }
     }
 
+    public class UltFflogsApiResponse
+    {
+        public TData data { get; set; }
+        public class TData
+        {
+            public TCharacterData characterData { get; set; }
+            public class TCharacterData
+            {
+                public TUltCharacter ultCharacter { get; set; }
+                public override string ToString()
+                {
+                    return "(characterData: " + ultCharacter + " )";
+                }
+            }
+
+            public override string ToString()
+            {
+                return "( data: " + this.characterData + " )";
+            }
+        }
+
+        public override string ToString()
+        {
+            return "(" + this.data + ")";
+        }
+    }
+    public class TUltCharacter
+    {
+        public bool hidden { get; set; }
+        public TRaidingTierData? ultimate1 { get; set; }
+        public TRaidingTierData? ultimate2 { get; set; }
+        public TRaidingTierData? ultimate3 { get; set; }
+        public TRaidingTierData? ultimate4 { get; set; }
+        public override string ToString()
+        {
+            var ult = "";
+            foreach (var rtd in new List<TRaidingTierData>() {ultimate1, ultimate2, ultimate3, ultimate4})
+            {
+                if (rtd != null) ult += rtd.ToString();
+            }
+            return "(character: \n hidden: "+hidden+"\n "+ult+" )";
+        }
+    }
+
     public class TCharacter
     {
         public bool hidden { get; set; }
@@ -244,6 +288,15 @@ namespace HelperTypes
         public int zone { get; set; }
         public TAllStar[] allStars { get; set; }
         public TRanking[] rankings { get; set; }
+        public override string ToString()
+        {
+            var encnames = "";
+            foreach (var enc in rankings)
+            {
+                encnames += " " + enc.encounter.name;
+            }
+            return ""+encnames;
+        }
     }
 
 #nullable enable
