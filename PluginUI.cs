@@ -1,18 +1,16 @@
 ﻿using ImGuiNET;
 using Dalamud.Plugin;
-using FFXIVClientStructs.Component.GUI;
 using System.Runtime.InteropServices;
 using System;
 using System.Numerics;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using Dalamud.Game.ClientState.Actors;
-using Dalamud.Game.ClientState.Structs;
 using Dalamud.Interface;
+using FFXIVClientStructs.FFXIV.Component.GUI;
 using HelperTypes;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Data;
+using Lumina.Excel;
 using Actor = Dalamud.Game.ClientState.Actors.Types.Actor;
 
 namespace FFLogsLookup
@@ -26,6 +24,13 @@ namespace FFLogsLookup
         private InspectInfo _target;
         private Dalamud.Game.ClientState.Actors.Types.Actor  _targetActor;
         private readonly Lumina.Excel.ExcelSheet<Lumina.Excel.GeneratedSheets.Title> _titles;
+        private readonly Lumina.Excel.ExcelSheet<AddonParam>  _addonNames;
+
+        private readonly List<string> _commonAddons = new List<string>()
+        {
+            "InventoryRetainerLarge", "InventoryRetainer", "InventoryExpansion", "InventoryLarge", "Inventory",
+            "InventoryBuddy", "ArmouryBoard"
+        };
         private readonly Configuration _config;
         private bool _requestOnce;
         private bool _requestUlts;
@@ -56,10 +61,23 @@ namespace FFLogsLookup
             // ideally i would pass this: (Lumina.Data.Language)((int)Interface.ClientState.ClientLanguage)
             // as an argument but play the game in english please and thank you
             this._titles = _interface.Data.Excel.GetSheet<Lumina.Excel.GeneratedSheets.Title>();
+
+            this._addonNames = _interface.Data.Excel.GetSheet<AddonParam>(); 
             this._requestOnce = true;
             this._requestUlts = false;
             this.RaidingPerformance = new RaidingTierPerformance(0);
             //this._requestUltOnce = true;
+        }
+        [Sheet("AddonParam")]
+        public class AddonParam : Lumina.Excel.ExcelRow {
+            public string XivString { get; private set; }
+            public bool Boolean { get; private set; }
+
+            public override void PopulateData(RowParser parser, Lumina.GameData gameData, Language language) {
+                base.PopulateData(parser, gameData, language);
+                XivString = parser.ReadColumn<string>(0);
+                Boolean = parser.ReadColumn<bool>(1);
+            }
         }
 
         public class WeaponDetails
@@ -309,7 +327,9 @@ namespace FFLogsLookup
                                            595 * this._target.winScale
                                            - 616);
                 var inspectWindowNodeList = inspectWindow->ULDData.NodeList;
-                this._target.homeWorld = Marshal.PtrToStringAnsi(new IntPtr(((AtkTextNode*)inspectWindowNodeList[59])->NodeText.StringPtr));
+                this._target.winFocused =
+                    ((AtkComponentNode*) inspectWindowNodeList[1])->Component->ULDData.NodeList[3]->IsVisible;
+                    this._target.homeWorld = Marshal.PtrToStringAnsi(new IntPtr(((AtkTextNode*)inspectWindowNodeList[59])->NodeText.StringPtr));
                 var name = "";
                 
                 var titleCandidate1 = (AtkTextNode*)inspectWindowNodeList[61];
@@ -428,6 +448,51 @@ namespace FFLogsLookup
             return false;
         }
 
+        /// <summary>
+        /// This method needs a bit more testing, though the method itself should be fine if certain addons are passed it seems to crash the game
+        /// for example the commendation menu when brought up alongside the CharacterInspect window will produce said result
+        /// </summary>
+        /// <param name="AddonName">The name of the addon to check the position and focus of</param>
+        /// <returns>Whether the given addon overlaps the character inspect window or not</returns>
+        public unsafe bool AddonHidesParses(string AddonName)
+        {
+            if (AddonName == null || AddonName == "CharacterInspect") return false;
+            var addon = _interface.Framework.Gui.GetUiObjectByName(AddonName, 1);
+            if (addon == IntPtr.Zero) return false;
+            try
+            {
+                
+                //if the addon is not focused
+                if (!((AtkComponentNode*) ((AtkUnitBase*)addon)->ULDData.NodeList[1])->Component->ULDData.NodeList[3]->IsVisible) 
+                    return false;
+                var a = new Dalamud.Game.Internal.Gui.Addon.Addon(addon,
+                    Marshal.PtrToStructure<Dalamud.Game.Internal.Gui.Structs.Addon>(addon));
+                //var a = Marshal.PtrToStructure<Dalamud.Game.Internal.Gui.Structs.Addon>(addon);
+                var imguiwinStartX = this._target.winPosX + this._target.offsetX + this._config.OffsetX;
+                var imguiwinStartY = this._target.winPosY + this._target.offsetY + this._config.OffsetY;
+                if ( 
+                    ((a.X < imguiwinStartX && 
+                    a.X + a.Width > imguiwinStartX + 10) ||
+                    (a.X > imguiwinStartX && 
+                     a.X < imguiwinStartX+118*_target.winScale)) 
+                    
+                    && 
+                    
+                    ((a.Y < imguiwinStartY && 
+                    a.Y + a.Height > imguiwinStartY + 25) ||
+                    (a.Y > imguiwinStartY &&
+                     a.Y > imguiwinStartY+37*_target.winScale))
+                    )
+                    return a.Visible;
+                return false;
+            } catch (Exception e)
+            {
+                PluginLog.Log(e.Message);
+                return false;
+            }
+
+        }
+
         public async void Draw()
         {
             #region Resets & Drawing Conditions / Exceptions
@@ -436,12 +501,26 @@ namespace FFLogsLookup
             if (!IsCharacterInspectVisible())
             {
                 this._requestOnce = true;
-                this.RaidingPerformance = new RaidingTierPerformance(0);
+                this.RaidingPerformance = new RaidingTierPerformance(-1);
                 this.UltPerformance = null;
                 return;
             }
+            
             // skip drawing UI if an itemtooltip would hide it
-            if (ItemTooltipHidesParses())
+            var cond = (_config.DetectOverlaps) && (!_target.winFocused) && (_commonAddons.Any(AddonHidesParses));
+            // the checks below are disabled since some addons cause crashes when their position is checked / or something else?
+            //|| _addonNames.Any(a=>AddonHidesParses(a.XivString)));
+            //var logonce = true;
+            /*foreach (var addonParam in _addonNames)
+            {
+                cond |= AddonHidesParses(addonParam.XivString);
+                if (cond && logonce)
+                {
+                    logonce = false;
+                    PluginLog.Log(addonParam.XivString+" is overlapping");
+                }
+            }*/
+            if (ItemTooltipHidesParses() || cond)
             {
                 return;
             }
@@ -499,6 +578,7 @@ namespace FFLogsLookup
             {
                 try
                 {
+                    
                     /*if (UltPerformance != null)
                     {
                         const string ultwindowTitle = "ultverification";
@@ -532,6 +612,9 @@ namespace FFLogsLookup
 
                     ImGui.Begin(windowTitle, flags);
                     ImGui.BeginGroup();
+
+                    #region Logs not found / Hidden Logs
+
                     if (this.RaidingPerformance.meta != null)
                     {
                         if (this.RaidingPerformance.meta.erroredProcessing)
@@ -580,6 +663,9 @@ namespace FFLogsLookup
                         }
                     }
 
+                    #endregion
+                    
+
                     var totalPercentiles = 0;
                     var cx = ImGui.GetCursorPosX();
                     var i = 0;
@@ -594,12 +680,14 @@ namespace FFLogsLookup
                         totalPercentiles += fight.highestPercentile;
                         ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(p1percentile));
                         ImGui.SetCursorPosX(cx + spacing * i);
-                        ImGui.Text("" + (p1percentile switch
+                        var parseStr = "" + (p1percentile switch
                         {
+                            -1=>"•",
                             0 => "·",
                             100 => "★",
                             _ => p1percentile
-                        }));
+                        });
+                        ImGui.Text(parseStr);
                         ImGui.SameLine();
                         ImGui.PopStyleColor();
                         if (ImGui.IsItemHovered() && fight.kills != 0)
@@ -624,6 +712,7 @@ namespace FFLogsLookup
                             ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(p2percentile));
                             ImGui.Text("" + (p2percentile switch
                             {
+                                -1=>"•",
                                 0 => "·",
                                 100 => "★",
                                 _ => p2percentile
@@ -703,7 +792,6 @@ namespace FFLogsLookup
                             $"https://www.fflogs.com/character/{this._target.region}/{this._target.homeWorld}/{this._target.firstName} {this._target.lastName}" +
                             (_config.CurrentDisplayZoneID != Plugin.LATEST_RAID_ID ? $"?zone={_config.CurrentDisplayZoneID}" : ""));
                     }
-
                     ImGui.End();
                 }
                 catch (Exception e)
@@ -728,14 +816,17 @@ namespace FFLogsLookup
             public WeaponDetails mainhand;
             public WeaponDetails offhand;
 
-            public float winHeight;
-            public float winWidth;
-            public int winPosX;
-            public int winPosY;
-            public float winScale;
-            public float offsetX;
-            public float offsetY;
+            public float winHeight = 0f;
+            public float winWidth = 0f;
+            public int winPosX = 0;
+            public int winPosY = 0;
+            public float winScale = 1f;
+            public float offsetX = 0f;
+            public float offsetY = 0f;
+            public bool winFocused;
+            
             public string region;
+            
 
             public TargetInfo ToTargetInfo()
             {
