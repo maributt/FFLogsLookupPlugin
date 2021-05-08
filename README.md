@@ -1,3 +1,6 @@
+<p align="center" style="border-bottom: none"><b>⚠️ If you are crashing consider reinstalling the plugin entirely ⚠️ <br>(by deleting <code>%AppData%\XIVLauncher\installedPlugins\FFLogsLookup</code>)</b><br> There has been a breaking update roughly around <b>April 30th 2021</b>.
+<br><h4 align="center">If you installed the plugin after that date there will be no issues.<h4></p>
+
 <h1 align="center">FFLogsLookup</h1>
 <p align="center">A <a href="https://github.com/goatcorp/Dalamud">Dalamud</a> plugin to display an inspected character's parses directly in the inspect window!<br>install for a brief setup tutorial & type <code>/ffll</code> in-game to configure!</p><br>
 
