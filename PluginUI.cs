@@ -68,8 +68,9 @@ namespace FFLogsLookup
             this.RaidingPerformance = new RaidingTierPerformance(0);
             //this._requestUltOnce = true;
         }
+        
         [Sheet("AddonParam")]
-        public class AddonParam : Lumina.Excel.ExcelRow {
+        private class AddonParam : Lumina.Excel.ExcelRow {
             public string XivString { get; private set; }
             public bool Boolean { get; private set; }
 
@@ -284,7 +285,7 @@ namespace FFLogsLookup
         /// Returns the earliest available Actor object among the following: mouse over, target, focus target
         /// </summary>
         /// <returns>The actor object of the target if found, if not, returns null</returns>
-        private Dalamud.Game.ClientState.Actors.Types.Actor GetTargetActorObject()
+        private Actor GetActorFromTarget()
         {
             var target = _interface.ClientState.Targets;
             return target.MouseOverTarget ?? target.CurrentTarget ?? target.FocusTarget;
@@ -297,7 +298,7 @@ namespace FFLogsLookup
         private unsafe bool IsCharacterInspectVisible()
         {
             var inspectWindow = (AtkUnitBase*)_interface.Framework.Gui.GetUiObjectByName("CharacterInspect", 1);
-            var currentTarget = GetTargetActorObject();
+            var currentTarget = GetActorFromTarget();
             if (inspectWindow == null) return false;
             if (!inspectWindow->IsVisible)
             {
@@ -314,22 +315,22 @@ namespace FFLogsLookup
             try
             {
                 #region Resolve this._target fields from CharacterInspect Addon
-                this._target.winPosX = inspectWindow->X;
-                this._target.winPosY = inspectWindow->Y;
-                this._target.winHeight = inspectWindow->RootNode->Height;
-                this._target.winWidth = inspectWindow->RootNode->Width;
-                this._target.winScale = inspectWindow->Scale;
+                this._target.WinPosX = inspectWindow->X;
+                this._target.WinPosY = inspectWindow->Y;
+                this._target.WinHeight = inspectWindow->RootNode->Height;
+                this._target.WinWidth = inspectWindow->RootNode->Width;
+                this._target.WinScale = inspectWindow->Scale;
 
-                this._target.offsetX = (87) * (this._target.winScale);
-                this._target.offsetY = this._target.winHeight +
+                this._target.OffsetX = 87f*this._target.WinScale;
+                this._target.OffsetY = this._target.WinHeight +
                                        (float) (
-                                           (-50 * Math.Pow(this._target.winScale, 2f)) +
-                                           595 * this._target.winScale
+                                           (-50 * Math.Pow(this._target.WinScale, 2f)) +
+                                           595 * this._target.WinScale
                                            - 616);
                 var inspectWindowNodeList = inspectWindow->ULDData.NodeList;
-                this._target.winFocused =
+                this._target.WinFocused =
                     ((AtkComponentNode*) inspectWindowNodeList[1])->Component->ULDData.NodeList[3]->IsVisible;
-                    this._target.homeWorld = Marshal.PtrToStringAnsi(new IntPtr(((AtkTextNode*)inspectWindowNodeList[59])->NodeText.StringPtr));
+                this._target.HomeWorld = Marshal.PtrToStringAnsi(new IntPtr(((AtkTextNode*)inspectWindowNodeList[59])->NodeText.StringPtr));
                 var name = "";
                 
                 var titleCandidate1 = (AtkTextNode*)inspectWindowNodeList[61];
@@ -351,8 +352,8 @@ namespace FFLogsLookup
                     
                     if (isTitle)
                     {
-                        if (_target.title != possibleTitle) InspectWindowChanged = true;
-                        this._target.title = possibleTitle;
+                        if (_target.Title != possibleTitle) InspectWindowChanged = true;
+                        this._target.Title = possibleTitle;
                         name = Marshal.PtrToStringAnsi(new IntPtr(titleCandidate2->NodeText.StringPtr));
                     }
                     
@@ -360,8 +361,8 @@ namespace FFLogsLookup
                     {
                         name = possibleTitle;
                         var newTitle = Marshal.PtrToStringAnsi(new IntPtr(titleCandidate2->NodeText.StringPtr));
-                        if (_target.title != newTitle) InspectWindowChanged = true;
-                        this._target.title = newTitle;
+                        if (_target.Title != newTitle) InspectWindowChanged = true;
+                        this._target.Title = newTitle;
                     }
                 }
                 else
@@ -370,16 +371,16 @@ namespace FFLogsLookup
                 }
                 if (name == null) return false; // basically impossible but my IDE wont stop screaming at me unless i put this here
                 var aName = name.Split(' ');
-                if (aName[0] != this._target.firstName) InspectWindowChanged = true;
-                this._target.firstName = aName[0];
-                this._target.lastName = aName[1];
+                if (aName[0] != this._target.FirstName) InspectWindowChanged = true;
+                this._target.FirstName = aName[0];
+                this._target.LastName = aName[1];
                 #endregion
 
                 if (!_config.SnapshotActorExperimental || !SnapshotInspectedPlayer) return true;
                 
                 SnapshotInspectedPlayer = false;
                 var actors = _interface.ClientState.Actors.Where(actor =>
-                    actor.Name == $"{this._target.firstName} {this._target.lastName}");
+                    actor.Name == $"{this._target.FirstName} {this._target.LastName}");
                 var players = actors as Actor[] ?? actors.ToArray();
 
                 if (players.Length == 0) return true;
@@ -390,11 +391,11 @@ namespace FFLogsLookup
                     
                 var foundMh = Ultimate.Weapons.FindWeapon(ref mainhand);
                 var foundOh = Ultimate.Weapons.FindWeapon(ref offhand);
-                var foundTi = Ultimate.Titles.MatchTitle(_target.title, ref _target.reqUcob, ref _target.reqUwu, ref _target.reqTea);
+                var foundTi = Ultimate.Titles.MatchTitle(_target.Title, ref _target.ReqUcob, ref _target.ReqUwu, ref _target.ReqTea);
                 if (foundTi || foundMh || foundOh)
                 {
-                    this._target.mainhand = mainhand;
-                    this._target.offhand = offhand;
+                    this._target.Mainhand = mainhand;
+                    this._target.Offhand = offhand;
                     this._requestUlts = true;
                     PluginLog.Log("player has visibly cleared an ultimate (title/weapon)");
                 }
@@ -419,7 +420,7 @@ namespace FFLogsLookup
         /// </summary>
         /// <param name="percentile"></param>
         /// <returns></returns>
-        private Vector4 GetColorFromPercentile(int percentile)
+        private static Vector4 GetColorFromPercentile(int percentile)
         {
             if (percentile < 25) return Grey;
             if (percentile < 50) return Green;
@@ -429,18 +430,18 @@ namespace FFLogsLookup
             return percentile < 100 ? Pink : Yellow;
         }
 
-        public bool ItemTooltipHidesParses()
+        private bool ItemTooltipHidesParses()
         {
             var tooltip = _interface.Framework.Gui.GetAddonByName("Tooltip", 1);
             if (tooltip?.Visible ?? true) return false;
 
             var itemdetail = _interface.Framework.Gui.GetAddonByName("ItemDetail", 1);
             // if the addon and the imgui window overlap...
-            if (itemdetail.X < this._target.winPosX + this._target.offsetX + this._config.OffsetX
-                && itemdetail.X + itemdetail.Width > this._target.winPosX + this._target.offsetX + this._config.OffsetX
-                && itemdetail.Y < this._target.winPosY + this._target.offsetY + this._config.OffsetY
+            if (itemdetail.X < this._target.WinPosX + this._target.OffsetX + this._config.OffsetX
+                && itemdetail.X + itemdetail.Width > this._target.WinPosX + this._target.OffsetX + this._config.OffsetX
+                && itemdetail.Y < this._target.WinPosY + this._target.OffsetY + this._config.OffsetY
                 && itemdetail.Y + itemdetail.Height >
-                this._target.winPosY + this._target.offsetY + this._config.OffsetY)
+                this._target.WinPosY + this._target.OffsetY + this._config.OffsetY)
             {
                 return itemdetail.Visible;
             }
@@ -454,7 +455,7 @@ namespace FFLogsLookup
         /// </summary>
         /// <param name="AddonName">The name of the addon to check the position and focus of</param>
         /// <returns>Whether the given addon overlaps the character inspect window or not</returns>
-        public unsafe bool AddonHidesParses(string AddonName)
+        private unsafe bool AddonHidesParses(string AddonName)
         {
             if (AddonName == null || AddonName == "CharacterInspect") return false;
             var addon = _interface.Framework.Gui.GetUiObjectByName(AddonName, 1);
@@ -467,21 +468,20 @@ namespace FFLogsLookup
                     return false;
                 var a = new Dalamud.Game.Internal.Gui.Addon.Addon(addon,
                     Marshal.PtrToStructure<Dalamud.Game.Internal.Gui.Structs.Addon>(addon));
-                //var a = Marshal.PtrToStructure<Dalamud.Game.Internal.Gui.Structs.Addon>(addon);
-                var imguiwinStartX = this._target.winPosX + this._target.offsetX + this._config.OffsetX;
-                var imguiwinStartY = this._target.winPosY + this._target.offsetY + this._config.OffsetY;
+                var imguiwinStartX = this._target.WinPosX + this._target.OffsetX + this._config.OffsetX;
+                var imguiwinStartY = this._target.WinPosY + this._target.OffsetY + this._config.OffsetY;
                 if ( 
                     ((a.X < imguiwinStartX && 
                     a.X + a.Width > imguiwinStartX + 10) ||
                     (a.X > imguiwinStartX && 
-                     a.X < imguiwinStartX+118*_target.winScale)) 
+                     a.X < imguiwinStartX+118*_target.WinScale)) 
                     
                     && 
                     
                     ((a.Y < imguiwinStartY && 
                     a.Y + a.Height > imguiwinStartY + 25) ||
                     (a.Y > imguiwinStartY &&
-                     a.Y > imguiwinStartY+37*_target.winScale))
+                     a.Y > imguiwinStartY+37*_target.WinScale))
                     )
                     return a.Visible;
                 return false;
@@ -493,9 +493,215 @@ namespace FFLogsLookup
 
         }
 
+        private static string GetRegionFromWorld(string worldName)
+        {
+            var world = FflogRequestsHandler._worlds.Find(w => w.Name.ToString().Equals(worldName));
+            var dc = FflogRequestsHandler._worldDcs.Find(d => d.Name.ToString().Equals(world.DataCenter.Value.Name));
+            return FflogRequestsHandler._regionName[dc.Region];
+        }
+        
+        /// <summary>
+        /// Draws the reminder ImGui window under the character inspect window of an inspected player until the user has completed the basic setup process
+        /// </summary>
+        private void DrawReminder()
+        {
+            ImGui.SetNextWindowPos(
+                new Vector2(
+                    this._target.WinPosX +10,
+                    this._target.WinPosY + this._target.WinHeight -65
+                )
+            );
+            ImGui.Begin("reminder",ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize);
+            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0f, 0f, 1f));
+            ImGui.Text("You must complete the initial configuration\nbefore you can start looking at other players' logs!");
+            ImGui.PopStyleColor();
+            ImGui.End();
+        }
+
+        private void IconText(string text)
+        {
+            ImGui.PushFont(UiBuilder.IconFont);
+            ImGui.Text(text);
+            ImGui.PopFont();
+        }
+
+        /// <summary>
+        /// Displays a hover text made from a given Fight object if the given fight has been cleared (>0 kills)
+        /// </summary>
+        /// <param name="fight"></param>
+        private void HoverParseEntry(Fight fight)
+        {
+            if (!ImGui.IsItemHovered() || fight.kills == 0) return;
+            ImGui.BeginTooltip();
+            ImGui.Text($"{fight?.getShortName()} ({fight?.job}) (kills: {fight?.kills})");
+            ImGui.PushStyleColor(ImGuiCol.Text, Grey);
+            ImGui.Text(_config.ShowMedian ? "Median" : "Best %%");
+            ImGui.PopStyleColor();
+            ImGui.EndTooltip();
+        }
+
+        /// <summary>
+        /// Draws the percentile of the given fight as text color-coded to match FFLogs' color standards
+        /// </summary>
+        /// <param name="fight"></param>
+        private void DrawEntry(Fight fight)
+        {
+            var percentile = _config.ShowMedian
+                ? fight.medianPercentile
+                : fight.highestPercentile;
+            ImGui.TextColored(GetColorFromPercentile(percentile), ""+percentile switch
+            {
+                -1=>"•",
+                0 => "·",
+                100 => "★",
+                _ => percentile
+            });
+            ImGui.SameLine();
+        }
+
+        /// <summary>
+        /// Display the tier name of the displayed parses if the tier isn't the latest one and if the user has the option enabled in the config
+        /// </summary>
+        private bool ShowTierName()
+        {
+            var showTierNameCond = _config.ShowTierName && _config.CurrentDisplayZoneID != Plugin.LATEST_RAID_ID;
+            if (!showTierNameCond) return false;
+            
+            ImGui.NewLine();
+            ImGui.PushStyleColor(ImGuiCol.Text, Grey);
+            ImGui.Text(ConfigUI.zones[_config.CurrentDisplayZoneID].name);
+            ImGui.PopStyleColor();
+            ImGui.SameLine();
+            return true;
+        }
+
+        private bool ShowNormalLabel(bool TierNameDrawn, int PercentileSum)
+        {
+            var normalCond = (_config.ShowNormal || _config.ShowOnlyNormal)
+                             && (!this.RaidingPerformance.firstFight?.savage ?? false)
+                             && (PercentileSum != 0 || _config.ShowOnlyNormal)
+                             && !this.RaidingPerformance.firstFight.extreme;
+            if (!normalCond) return false;
+            if (TierNameDrawn) ImGui.SetCursorPosX(ImGui.GetCursorPosX()-5f);
+            else ImGui.SetCursorPosY(ImGui.GetCursorPosY()+20f);
+            
+            ImGui.PushStyleColor(ImGuiCol.Text, Grey);
+            ImGui.Text("(Normal)");
+            ImGui.PopStyleColor();
+            return true;
+        }
+
+        /// <summary>
+        /// Displays information when hovering over a normal difficulty drawn entry 
+        /// </summary>
+        /// <param name="Show"></param>
+        private void HoverNormalMode(bool Show)
+        {
+            if (!ImGui.IsItemHovered() || !Show) return;
+            ImGui.BeginTooltip();
+            ImGui.PushTextWrapPos(250f);
+            ImGui.TextWrapped(
+                $"The percentiles above were set in the normal version of {ConfigUI.zones[_config.CurrentDisplayZoneID].name}.");
+            ImGui.PopTextWrapPos();
+            ImGui.EndTooltip();
+        }
+
+        /// <summary>
+        /// Handles the drawing process of messages displayed if the character's logs are not found or hidden
+        /// </summary>
+        private void DrawSpecialCase()
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, Grey); 
+            IconText(this.RaidingPerformance.meta.icon); ImGui.SameLine();
+            ImGui.Text(this.RaidingPerformance.meta.hoverText);
+            ImGui.PopStyleColor();
+            ImGui.EndGroup();
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+                if (this.RaidingPerformance.meta.hoverText == FflogRequestsHandler.LOGS_NOT_FOUND)
+                {
+                    ImGui.BeginTooltip();
+                    ImGui.PushStyleColor(ImGuiCol.Text, Grey);
+                    ImGui.Text(!_interface.ClientState.KeyState[0x10]
+                        ? "Hold Left Shift and click to open a new fflogs search for the character.\n(can be useful to know if character has no logs\n instead of just having transferred to a new world)"
+                        : $"Click to open a new search window for \"{this._target.FirstName} {this._target.LastName}\".");
+                    ImGui.PopStyleColor();
+                    ImGui.EndTooltip();
+                }
+            }
+            if (ImGui.IsItemClicked()) Process.Start(
+                (_interface.ClientState.KeyState[0x10] && this.RaidingPerformance.meta.hoverText == FflogRequestsHandler.LOGS_NOT_FOUND)
+                    ? $"https://www.fflogs.com/search/?term={System.Net.WebUtility.UrlEncode(this._target.FirstName+" "+this._target.LastName)}"
+                    : $"https://www.fflogs.com/character/{this._target.Region}/{this._target.HomeWorld}/{this._target.FirstName} {this._target.LastName}"
+            );
+
+            ImGui.End();
+        }
+        
+        private void DrawPercentiles()
+        {
+            var flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize;
+            if (!this._config.ShowBackground) flags |= ImGuiWindowFlags.NoBackground;
+            ImGui.SetNextWindowPos(
+                new Vector2(
+                    this._target.WinPosX + this._target.OffsetX + this._config.OffsetX,
+                    this._target.WinPosY + this._target.OffsetY + this._config.OffsetY
+                )
+            );
+            ImGui.Begin("percentiles", flags);
+            ImGui.BeginGroup();
+            
+                // Logs not found / Hidden Logs
+                if (this.RaidingPerformance.meta != null)
+                {
+                    if (this.RaidingPerformance.meta.erroredProcessing)
+                    {
+                        DrawSpecialCase(); return;
+                    }
+                }
+                
+                var totalPercentiles = 0;
+                var cx = ImGui.GetCursorPosX();
+                const int spacing = 20;
+                for (var i = 0; i < this.RaidingPerformance.fightsArray.Length; i++)
+                {
+                    var fight = this.RaidingPerformance.fightsArray[i];
+                    ImGui.SetCursorPosX(cx + spacing * i);
+                    DrawEntry(fight);
+                    HoverParseEntry(fight);
+                    if (fight.savage && fight.part2 != null)
+                    {
+                        ImGui.SetCursorPosX(cx + (spacing * (float) (i + 0.725)));
+                        ImGui.Text("/"); ImGui.SameLine();
+                        
+                        ImGui.SetCursorPosX(cx + (spacing * (i + 1)));
+                        DrawEntry(fight.part2);
+                        HoverParseEntry(fight.part2);
+                    }
+                    totalPercentiles += fight.highestPercentile;
+                }
+
+                ImGui.NewLine(); ImGui.BeginGroup(); // items below parses group 
+                
+                    var cury = ImGui.GetCursorPosY();
+                    ImGui.SetCursorPosY(cury-25f);
+                    
+                    var TierNameShown = ShowTierName();
+                    var NormalLabelShown = ShowNormalLabel(TierNameShown, totalPercentiles);
+                
+                ImGui.EndGroup();
+                HoverNormalMode(NormalLabelShown);
+            ImGui.EndGroup();
+            if (ImGui.IsItemHovered()) ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+            if (ImGui.IsItemClicked()) Process.Start(
+                    $"https://www.fflogs.com/character/{this._target.Region}/{this._target.HomeWorld}/{this._target.FirstName} {this._target.LastName}" +
+                    (_config.CurrentDisplayZoneID != Plugin.LATEST_RAID_ID ? $"?zone={_config.CurrentDisplayZoneID}" : ""));
+            ImGui.End();
+        }
+        
         public async void Draw()
         {
-            #region Resets & Drawing Conditions / Exceptions
             /* skip drawing UI if the character inspect addon is not visible
              get ready for the next inspect */
             if (!IsCharacterInspectVisible())
@@ -505,332 +711,83 @@ namespace FFLogsLookup
                 this.UltPerformance = null;
                 return;
             }
-            
-            // skip drawing UI if an itemtooltip would hide it
-            var cond = (_config.DetectOverlaps) && (!_target.winFocused) && (_commonAddons.Any(AddonHidesParses));
-            // the checks below are disabled since some addons cause crashes when their position is checked / or something else?
-            //|| _addonNames.Any(a=>AddonHidesParses(a.XivString)));
-            //var logonce = true;
-            /*foreach (var addonParam in _addonNames)
-            {
-                cond |= AddonHidesParses(addonParam.XivString);
-                if (cond && logonce)
-                {
-                    logonce = false;
-                    PluginLog.Log(addonParam.XivString+" is overlapping");
-                }
-            }*/
-            if (ItemTooltipHidesParses() || cond)
-            {
-                return;
-            }
-            
             // draw reminder to do the initial setup
             if (_config.initialConfig)
             {
-                ImGui.SetNextWindowPos(
-                    new Vector2(
-                        this._target.winPosX +10,
-                        this._target.winPosY + this._target.winHeight -65
-                    )
-                );
-                ImGui.Begin("reminder",ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize);
-                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0f, 0f, 1f));
-                ImGui.Text("You must complete the initial configuration\nbefore you can start looking at other players' logs!");
-                ImGui.PopStyleColor();
-                ImGui.End();
+                DrawReminder();
                 return;
             }
-            #endregion
-            
+            // skip drawing UI if an itemtooltip would hide it
+            var cond = (_config.DetectOverlaps) && (!_target.WinFocused) && (_commonAddons.Any(AddonHidesParses));
+            if (ItemTooltipHidesParses() || cond) return;
+
             // call the FFLogs API once per character inspect
             if (_requestOnce || _config.forceRefresh)
             {
-                var reqUltLogs = this._requestUlts;
-                
                 this._requestOnce = false;
                 this._requestUlts = false; 
                 _config.Save();
                 
                 // resolve the DC region field for the inspected character's InspectInfo object
-                var world = FflogRequestsHandler._worlds.Find(w => w.Name.ToString().Equals(this._target.homeWorld));
-                var dc = FflogRequestsHandler._worldDcs.Find(d => d.Name.ToString().Equals(world.DataCenter.Value.Name));
-                var region = FflogRequestsHandler._regionName[dc.Region];
-                this._target.region = region;
+                this._target.Region = GetRegionFromWorld(this._target.HomeWorld);
                 
                 // Request usual savage / extreme logs for whichever tier is selected in the config
                 var temp = await _fflog.PerformRequest(this._target.ToTargetInfo());
+                if (temp == null)
+                {
+                    this.RaidingPerformance = new RaidingTierPerformance(-1)
+                    {
+                        meta = new Meta()
+                        {
+                            erroredProcessing = true,
+                            hoverText = "FFLogs offline.",
+                            icon = FontAwesomeIcon.Times.ToIconString(),
+                            longHoverText = "FFLogs website is down for a short maintenance."
+                        }
+                    };
+                    return;
+                }
                 this.RaidingPerformance = _fflog.Summarize(temp);
-
-                /*if (reqUltLogs && (!this.RaidingPerformance?.meta?.erroredProcessing ?? true))
-                {
-                    _target.reqUcob |= _target.mainhand.ucob;
-                    _target.reqUwu  |= _target.mainhand.uwu;
-                    _target.reqTea  |=_target.mainhand.tea;
-
-                    var res = await _fflog.PerformUltRequest(_target);
-                    PluginLog.Log(res.ToString());
-                    PluginLog.Log(res.data.characterData.character.ToString());
-                    this.UltPerformance = _fflog.SummarizeUlt(res, this._target);
-                }*/
+                return;
             }
-            else
+            
+            try
             {
-                try
-                {
-                    
-                    /*if (UltPerformance != null)
-                    {
-                        const string ultwindowTitle = "ultverification";
-                        ImGui.SetNextWindowPos(
-                            new Vector2(
-                                this._target.winPosX + 100,
-                                this._target.winPosY + 100
-                            )
-                        );
-                        ImGui.Begin(ultwindowTitle, ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize);
-                        if (UltPerformance.fightsArray.Count(Fight => Fight.kills == 0) == 0)
-                        {
-                            ImGui.PushStyleColor(ImGuiCol.Text, Green);
-                            ImGui.Text("✓");
-                            ImGui.PopStyleColor();
-                        }
-                        ImGui.End();
-                    }*/
-                    
-                    const string windowTitle = "percentiles";
-                    ImGuiWindowFlags flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize;
-
-                    if (!this._config.ShowBackground) flags |= ImGuiWindowFlags.NoBackground;
-                    // +73, -120 -> offsets to place percentiles right below the character preview window
-                    ImGui.SetNextWindowPos(
-                        new Vector2(
-                            this._target.winPosX + this._target.offsetX + this._config.OffsetX,
-                            this._target.winPosY + this._target.offsetY + this._config.OffsetY
-                        )
-                    );
-
-                    ImGui.Begin(windowTitle, flags);
-                    ImGui.BeginGroup();
-
-                    #region Logs not found / Hidden Logs
-
-                    if (this.RaidingPerformance.meta != null)
-                    {
-                        if (this.RaidingPerformance.meta.erroredProcessing)
-                        {
-                            ImGui.PushStyleColor(ImGuiCol.Text, Grey);
-                            ImGui.PushFont(UiBuilder.IconFont);
-                            ImGui.Text(this.RaidingPerformance.meta.icon);
-                            ImGui.PopFont();
-                            ImGui.SameLine();
-                            ImGui.Text(this.RaidingPerformance.meta.hoverText);
-                            ImGui.PopStyleColor();
-                            ImGui.EndGroup();
-                            if (ImGui.IsItemHovered())
-                            {
-                                ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-                                if (this.RaidingPerformance.meta.hoverText == FflogRequestsHandler.LOGS_NOT_FOUND)
-                                {
-                                    ImGui.BeginTooltip();
-                                    ImGui.PushStyleColor(ImGuiCol.Text, Grey);
-                                    if (!_interface.ClientState.KeyState[0x10])
-                                    {
-                                        ImGui.Text("Hold Left Shift and click to open a new fflogs search for the character.\n(can be useful to know if character has no logs\n instead of just having transferred to a new world)");
-                                    }
-                                    else
-                                    {
-                                        ImGui.Text($"Click to open a new search window for \"{this._target.firstName} {this._target.lastName}\".");
-                                    }
-                                    ImGui.PopStyleColor();
-                                    ImGui.EndTooltip();
-                                }
-                            }
-
-                            if (ImGui.IsItemClicked())
-                            {
-                                var url =
-                                    $"https://www.fflogs.com/character/{this._target.region}/{this._target.homeWorld}/{this._target.firstName} {this._target.lastName}";
-                                if (_interface.ClientState.KeyState[0x10] && this.RaidingPerformance.meta.hoverText == FflogRequestsHandler.LOGS_NOT_FOUND)
-                                {
-                                    url = $"https://www.fflogs.com/search/?term={System.Net.WebUtility.UrlEncode(this._target.firstName+" "+this._target.lastName)}";
-                                }
-                                Process.Start(url);
-                            }
-
-                            ImGui.End();
-                            return;
-                        }
-                    }
-
-                    #endregion
-                    
-
-                    var totalPercentiles = 0;
-                    var cx = ImGui.GetCursorPosX();
-                    var i = 0;
-                    var spacing = 20;
-                    
-                    foreach (var fight in this.RaidingPerformance.fightsArray)
-                    {
-                        var p1percentile = _config.ShowMedian
-                            ? fight.medianPercentile
-                            : fight.highestPercentile;
-
-                        totalPercentiles += fight.highestPercentile;
-                        ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(p1percentile));
-                        ImGui.SetCursorPosX(cx + spacing * i);
-                        var parseStr = "" + (p1percentile switch
-                        {
-                            -1=>"•",
-                            0 => "·",
-                            100 => "★",
-                            _ => p1percentile
-                        });
-                        ImGui.Text(parseStr);
-                        ImGui.SameLine();
-                        ImGui.PopStyleColor();
-                        if (ImGui.IsItemHovered() && fight.kills != 0)
-                        {
-                            ImGui.BeginTooltip();
-                            ImGui.Text($"{fight?.getShortName()} ({fight?.job}) (kills: {fight?.kills})");
-                            ImGui.PushStyleColor(ImGuiCol.Text, Grey);
-                            ImGui.Text(_config.ShowMedian ? "Median" : "Best %%");
-                            ImGui.PopStyleColor();
-                            ImGui.EndTooltip();
-                        }
-                        
-                        if (fight.savage && fight.part2 != null)
-                        {
-                            var p2percentile = _config.ShowMedian
-                                ? fight.part2.medianPercentile
-                                : fight.part2.highestPercentile;
-                            ImGui.SetCursorPosX(cx + (spacing * (float) (i + 0.725)));
-                            ImGui.Text("/");
-                            ImGui.SameLine();
-                            ImGui.SetCursorPosX(cx + (spacing * (i + 1)));
-                            ImGui.PushStyleColor(ImGuiCol.Text, GetColorFromPercentile(p2percentile));
-                            ImGui.Text("" + (p2percentile switch
-                            {
-                                -1=>"•",
-                                0 => "·",
-                                100 => "★",
-                                _ => p2percentile
-                            }));
-                            ImGui.SameLine();
-                            ImGui.PopStyleColor();
-                            if (ImGui.IsItemHovered() && fight.kills != 0)
-                            {
-                                ImGui.BeginTooltip();
-                                ImGui.Text($"{fight.part2.getShortName()} ({fight.part2.job}) (kills: {fight.part2.kills})");
-                                ImGui.PushStyleColor(ImGuiCol.Text, Grey);
-                                ImGui.Text(_config.ShowMedian ? "Median" : "Best %%");
-                                ImGui.PopStyleColor();
-                                ImGui.EndTooltip();
-                            }
-                        }
-                        i++;
-                    }
-                    
-                    
-                    ImGui.NewLine();
-                    ImGui.BeginGroup(); // items below parses group 
-                    
-                    var cury = ImGui.GetCursorPosY();
-                    ImGui.SetCursorPosY(cury-25f);
-                    
-                    var showTierNameCond = _config.ShowTierName && _config.CurrentDisplayZoneID != Plugin.LATEST_RAID_ID;
-                    if (showTierNameCond)
-                    {
-                        ImGui.NewLine();
-                        ImGui.PushStyleColor(ImGuiCol.Text, Grey);
-                        ImGui.Text(ConfigUI.zones[_config.CurrentDisplayZoneID].name);
-                        ImGui.PopStyleColor();
-                        ImGui.SameLine();
-                        
-                    }
-                    var normalCond = (_config.ShowNormal || _config.ShowOnlyNormal)
-                                     && (!this.RaidingPerformance.firstFight?.savage ?? false)
-                                     && (totalPercentiles != 0 || _config.ShowOnlyNormal)
-                                     && !this.RaidingPerformance.firstFight.extreme;
-                    if (normalCond)
-                    {
-                        if (showTierNameCond)
-                        {
-                            var curx = ImGui.GetCursorPosX();
-                            ImGui.SetCursorPosX(curx-5f);
-                        }
-                        else
-                        {
-                            ImGui.SetCursorPosY(cury-5f);
-                        }
-                        
-                        ImGui.PushStyleColor(ImGuiCol.Text, Grey);
-                        ImGui.Text("(Normal)");
-                        ImGui.PopStyleColor();
-                    }
-                    ImGui.EndGroup();
-                    if (ImGui.IsItemHovered() && normalCond)
-                    {
-                        ImGui.BeginTooltip();
-                        ImGui.PushTextWrapPos(250f);
-                        ImGui.TextWrapped(
-                            $"The percentiles above were set in the normal version of {ConfigUI.zones[_config.CurrentDisplayZoneID].name}.");
-                        ImGui.PopTextWrapPos();
-                        ImGui.EndTooltip();
-                    }
-                    
-                    ImGui.EndGroup();
-                    if (ImGui.IsItemHovered())
-                    {
-                        ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-                    }
-
-                    if (ImGui.IsItemClicked())
-                    {
-                        Process.Start(
-                            $"https://www.fflogs.com/character/{this._target.region}/{this._target.homeWorld}/{this._target.firstName} {this._target.lastName}" +
-                            (_config.CurrentDisplayZoneID != Plugin.LATEST_RAID_ID ? $"?zone={_config.CurrentDisplayZoneID}" : ""));
-                    }
-                    ImGui.End();
-                }
-                catch (Exception e)
-                {
-                    PluginLog.Log(e.Message); // there shouldn't be any problems now :) i think i fixed most of them...
-                }
+                DrawPercentiles();
+            }
+            catch (Exception e)
+            {
+                PluginLog.Log(e.Message); // there shouldn't be any problems now :) i think i fixed most of them...
             }
         }
-
         
-
-
         public class InspectInfo
         {
-            public string firstName;
-            public string lastName;
-            public string homeWorld;
-            public string title;
-            public bool reqUcob;
-            public bool reqUwu;
-            public bool reqTea;
-            public WeaponDetails mainhand;
-            public WeaponDetails offhand;
-
-            public float winHeight = 0f;
-            public float winWidth = 0f;
-            public int winPosX = 0;
-            public int winPosY = 0;
-            public float winScale = 1f;
-            public float offsetX = 0f;
-            public float offsetY = 0f;
-            public bool winFocused;
+            public string FirstName;
+            public string LastName;
+            public string HomeWorld;
+            public string Region;
+            public string Title;
             
-            public string region;
+            public bool ReqUcob;
+            public bool ReqUwu;
+            public bool ReqTea;
             
+            public WeaponDetails Mainhand;
+            public WeaponDetails Offhand;
 
+            public float WinHeight = 0f;
+            public float WinWidth = 0f;
+            public int WinPosX = 0;
+            public int WinPosY = 0;
+            public float WinScale = 1f;
+            public float OffsetX = 87f;
+            public float OffsetY = -120f;
+            public bool WinFocused;
+            
             public TargetInfo ToTargetInfo()
             {
-                return new TargetInfo(this.firstName, this.lastName, this.homeWorld);
+                return new TargetInfo(this.FirstName, this.LastName, this.HomeWorld);
             }
         }
     }

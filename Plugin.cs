@@ -4,10 +4,11 @@ using System;
 using Dalamud.Game.ClientState.Actors.Types;
 using System.Collections.Generic;
 using System.Linq;
-using HelperTypes;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
+using Dalamud.Interface;
+using HelperTypes;
 
 namespace FFLogsLookup
 {
@@ -233,15 +234,34 @@ namespace FFLogsLookup
                     }
                 }
             }
-            
+
+            var tierSummary = new RaidingTierPerformance(-1);
             FflogsApiResponse response = await fflog.PerformRequest(targetInfo);
-            var tierSummary = fflog.Summarize(response);
+            if (response == null)
+            {
+                tierSummary = new RaidingTierPerformance(-1)
+                {
+                    meta = new Meta()
+                    {
+                        erroredProcessing = true,
+                        hoverText = "FFLogs offline.",
+                        icon = FontAwesomeIcon.Times.ToIconString(),
+                        longHoverText = "FFLogs website is down for a short maintenance."
+                    }
+                };
+            }
+            if (response != null) tierSummary = fflog.Summarize(response);
             var fString = "";
             
             // if an "error" occurred during Summarize (character not found, hidden logs)
             if ((tierSummary?.meta?.erroredProcessing ?? false))
             {
                 var errStr = tierSummary.meta.longHoverText.Split('_');
+                if (errStr.Length == 1)
+                {
+                    printWarning(errStr[0]);
+                    return;
+                } 
                 printWarning(errStr[0], targetInfo, errStr[1]);
                 return;
             }

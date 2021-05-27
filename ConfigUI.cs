@@ -36,11 +36,13 @@ namespace FFLogsLookup
         private bool testReqSucceeded = false;
         private bool testReqSent = false;
         private bool testReqPending = false;
+        private int testReqCode;
         private string workingId;
         private string workingSecret;
         private bool InitialDrawReq;
         private bool PercentileShown;
         private bool SnapshotActor;
+        private bool DetectOverlaps;
         
         //offsets for draw
         private float labeloffset = -10f;
@@ -97,7 +99,7 @@ namespace FFLogsLookup
             7,  // Gordias (Savage)
         };
 
-        public static int[] ExTrialIDs = new[]
+        public static int[] ExTrialIDs =
         {
             37, 34, 28
         };
@@ -118,10 +120,11 @@ namespace FFLogsLookup
             this.SnapshotActor = config.SnapshotActorExperimental;
             this.fflog = fflog;
             this.Interface = pluginInterface;
+            this.DetectOverlaps = config.DetectOverlaps;
         }
 
         
-
+        #region Draw Initial (Tutorial) interface
         public void DrawInitialSetup()
         {
             if (!config.initialConfig)
@@ -241,6 +244,7 @@ namespace FFLogsLookup
             ImGui.NewLine();
             ImGui.End();
         }
+        #endregion
 
         public void Draw()
         {
@@ -256,128 +260,151 @@ namespace FFLogsLookup
                 var cx = ImGui.GetCursorPosX() + 20;
                 var cy = ImGui.GetCursorPosY() + 20;
 
+                ImGui.SetCursorPosY(cy+3);
+                ImGui.SetCursorPosX(cx+rightOffset+rightBoundOffset);
+                ImGui.SetCursorPosX(cx+labeloffset);
+                var text = "Detect overlapping windows? ";
+                ImGui.SetCursorPosX(ImGui.GetWindowSize().X-ImGui.CalcTextSize(text).X-50);
+                ImGui.Text(text); ImGui.SameLine();
+                if (ImGui.Checkbox("##overlapsDetectionToggle", ref DetectOverlaps))
+                {
+                    config.DetectOverlaps = DetectOverlaps;
+                } ImGui.SameLine();
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.BeginTooltip();
+                    ImGui.PushTextWrapPos(350f);
+                    ImGui.PushStyleColor(ImGuiCol.Text, grey);
+                    ImGui.TextWrapped("Hide the parses display when other windows are overlapping the Character Inspect one, this may or may not impact performance so I'm leaving a toggle for it here for the time being until I know for sure whether it does or not.\nAs is, it should be stable enough to be used and from my limited testing, you probably won't see a performance drop.");
+                    ImGui.PopStyleColor();
+                    ImGui.EndTooltip();
+                }
                 ImGui.SetCursorPosY(cy);
                 ImGui.SetCursorPosX(cx+rightOffset+rightBoundOffset);
                 ImGui.SetCursorPosX(cx+labeloffset);
-                ImGui.Text("Parse Settings");
-                ImGui.NewLine();
-                ImGui.SetCursorPosX(cx);
-                cy = ImGui.GetCursorPosY();
-                
-                // window bg
-                ImGui.Text("Show window background");
-                ImGui.SameLine(); ImGui.SetCursorPosX(cx+offset);
-                if (ImGui.Checkbox("##background", ref ShowBackground))
-                {
-                    config.ShowBackground = ShowBackground;
-                    config.Save();
-                }
-                ImGui.SetCursorPosX(cx);
 
-                // normal parses
-                ImGui.Text("Show normal mode parses");
-                ImGui.SameLine(); ImGui.SetCursorPosX(cx+offset);
-                if (ImGui.Checkbox("##nm", ref ShowNormal))
-                {
-                    config.ShowNormal = ShowNormal;
-                    config.Save(true);
-                }
-                ImGui.SetCursorPosX(cx);
-                
-                // select highest/avg
-                ImGui.Text("Show highest or median percentile"); ImGui.SameLine();
-                ImGui.SetCursorPosX(cx+offset);
-                if (ImGui.Checkbox("(  showing##bestPercentile", ref PercentileShown))
-                {
-                    config.ShowMedian = PercentileShown;
-                    config.Save();
-                }
-                
-                ImGui.SameLine(); 
-                ImGui.PushStyleColor(ImGuiCol.Text, PercentileShown ? PluginUi.Purple : PluginUi.Yellow);
-                ImGui.Text(PercentileShown ? "median" : "highest");
-                ImGui.PopStyleColor(); ImGui.SameLine(); 
-                ImGui.Text(")");
-                ImGui.SetCursorPosX(cx);
-
-                /* stuff that i havent implemented yet
-                // ult parses
-                ImGui.Text("Show ultimate parses");
-                ImGui.SameLine(); ImGui.SetCursorPosX(cx+offset);
-                if (ImGui.Checkbox("##ult", ref ShowUltimates))
-                {
-                    config.ShowUltimates = ShowUltimates;
-                }
-                ImGui.SetCursorPosX(cx);
-
-                // only normal parses
-                ImGui.Text("Show only normal mode parses");
-                ImGui.SameLine(); ImGui.SetCursorPosX(cx+offset);
-                if (ImGui.Checkbox("##youareinsane", ref ShowOnlyNormal))
-                {
-                    config.ShowOnlyNormal = ShowOnlyNormal;
-                }
-                ImGui.SetCursorPosX(cx);
-                */
-
-                // offsets
-                var cy_b = ImGui.GetCursorPosY();
-                ImGui.SetCursorPosY(cy);
-                
-                //x
-                
-                ImGui.SetCursorPosX(cx+rightOffset);
-                ImGui.Text("X Offset ");
-                ImGui.SameLine();
-                ImGui.SetNextItemWidth(50f);
-                if (ImGui.DragInt("##xoffset", ref OffsetX, 1))
-                {
-                    config.OffsetX = OffsetX;
-                    config.Save();
-                }
-                
-                //y
-                ImGui.SetCursorPosX(cx+rightOffset);
-                ImGui.Text("Y Offset ");
-                ImGui.SameLine();
-                ImGui.SetNextItemWidth(50f);
-                if (ImGui.DragInt("##yoffset", ref OffsetY, 1))
-                {
-                    config.OffsetY = OffsetY;
-                    config.Save();
-                }
-                ImGui.SetCursorPosY(cy_b);
-                ImGui.NewLine();
-                ImGui.Separator();
-                ImGui.NewLine();
-                
-                // tier selector
-                //ImGui.Combo("Select tier to display##tierSelector", "test");*
-                ImGui.SetCursorPosX(cx);
-                ImGui.Text("Select tier to display"); ImGui.SameLine();
-                ImGui.SetNextItemWidth(200f);
-                if (ImGui.Combo("##tierDisplayed", ref CurrentDisplayTier, zoneNames, zoneNames.Length))
-                {
-                    config.CurrentDisplayZoneID = zoneIDs[CurrentDisplayTier];
-                    config.TierIndex = CurrentDisplayTier;
-                    config.Save(true);
-                };
-                if (ImGui.IsItemHovered())
-                {
-                    if (zones[config.CurrentDisplayZoneID].desc != null)
+                #region ImGui Display Win Config
+                    ImGui.Text("Parse Settings");
+                    ImGui.NewLine();
+                    ImGui.SetCursorPosX(cx);
+                    cy = ImGui.GetCursorPosY();
+                    
+                    // window bg
+                    ImGui.Text("Show window background");
+                    ImGui.SameLine(); ImGui.SetCursorPosX(cx+offset);
+                    if (ImGui.Checkbox("##background", ref ShowBackground))
                     {
-                        ImGui.BeginTooltip();
-                        ImGui.Text(zones[config.CurrentDisplayZoneID].desc);
-                        ImGui.EndTooltip();
+                        config.ShowBackground = ShowBackground;
+                        config.Save();
                     }
-                }
-                ImGui.SetCursorPosX(cx);
-                ImGui.Text("Display tier name under percentiles?"); ImGui.SameLine();
-                if (ImGui.Checkbox("##showTierName", ref ShowTierName))
-                {
-                    config.ShowTierName = ShowTierName;
-                    config.Save();
-                }
+                    ImGui.SetCursorPosX(cx);
+
+                    // normal parses
+                    ImGui.Text("Show normal mode parses");
+                    ImGui.SameLine(); ImGui.SetCursorPosX(cx+offset);
+                    if (ImGui.Checkbox("##nm", ref ShowNormal))
+                    {
+                        config.ShowNormal = ShowNormal;
+                        config.Save(true);
+                    }
+                    ImGui.SetCursorPosX(cx);
+                    
+                    // select highest/avg
+                    ImGui.Text("Show highest or median percentile"); ImGui.SameLine();
+                    ImGui.SetCursorPosX(cx+offset);
+                    if (ImGui.Checkbox("(  showing##bestPercentile", ref PercentileShown))
+                    {
+                        config.ShowMedian = PercentileShown;
+                        config.Save();
+                    }
+                    
+                    ImGui.SameLine(); 
+                    ImGui.PushStyleColor(ImGuiCol.Text, PercentileShown ? PluginUi.Purple : PluginUi.Yellow);
+                    ImGui.Text(PercentileShown ? "median" : "highest");
+                    ImGui.PopStyleColor(); ImGui.SameLine(); 
+                    ImGui.Text(")");
+                    ImGui.SetCursorPosX(cx);
+
+                    /* stuff that i havent implemented yet
+                    // ult parses
+                    ImGui.Text("Show ultimate parses");
+                    ImGui.SameLine(); ImGui.SetCursorPosX(cx+offset);
+                    if (ImGui.Checkbox("##ult", ref ShowUltimates))
+                    {
+                        config.ShowUltimates = ShowUltimates;
+                    }
+                    ImGui.SetCursorPosX(cx);
+
+                    // only normal parses
+                    ImGui.Text("Show only normal mode parses");
+                    ImGui.SameLine(); ImGui.SetCursorPosX(cx+offset);
+                    if (ImGui.Checkbox("##youareinsane", ref ShowOnlyNormal))
+                    {
+                        config.ShowOnlyNormal = ShowOnlyNormal;
+                    }
+                    ImGui.SetCursorPosX(cx);
+                    */
+
+                    // offsets
+                    var cy_b = ImGui.GetCursorPosY();
+                    ImGui.SetCursorPosY(cy);
+                    
+                    //x
+                    
+                    ImGui.SetCursorPosX(cx+rightOffset);
+                    ImGui.Text("X Offset ");
+                    ImGui.SameLine();
+                    ImGui.SetNextItemWidth(50f);
+                    if (ImGui.DragInt("##xoffset", ref OffsetX, 1))
+                    {
+                        config.OffsetX = OffsetX;
+                        config.Save();
+                    }
+                    
+                    //y
+                    ImGui.SetCursorPosX(cx+rightOffset);
+                    ImGui.Text("Y Offset ");
+                    ImGui.SameLine();
+                    ImGui.SetNextItemWidth(50f);
+                    if (ImGui.DragInt("##yoffset", ref OffsetY, 1))
+                    {
+                        config.OffsetY = OffsetY;
+                        config.Save();
+                    }
+                    ImGui.SetCursorPosY(cy_b);
+                    ImGui.NewLine();
+                    ImGui.Separator();
+                    ImGui.NewLine();
+                    
+                    // tier selector
+                    //ImGui.Combo("Select tier to display##tierSelector", "test");*
+                    ImGui.SetCursorPosX(cx);
+                    ImGui.Text("Select tier to display"); ImGui.SameLine();
+                    ImGui.SetNextItemWidth(200f);
+                    if (ImGui.Combo("##tierDisplayed", ref CurrentDisplayTier, zoneNames, zoneNames.Length))
+                    {
+                        config.CurrentDisplayZoneID = zoneIDs[CurrentDisplayTier];
+                        config.TierIndex = CurrentDisplayTier;
+                        config.Save(true);
+                    };
+                    if (ImGui.IsItemHovered())
+                    {
+                        if (zones[config.CurrentDisplayZoneID].desc != null)
+                        {
+                            ImGui.BeginTooltip();
+                            ImGui.Text(zones[config.CurrentDisplayZoneID].desc);
+                            ImGui.EndTooltip();
+                        }
+                    }
+                    ImGui.SetCursorPosX(cx);
+                    ImGui.Text("Display tier name under percentiles?"); ImGui.SameLine();
+                    if (ImGui.Checkbox("##showTierName", ref ShowTierName))
+                    {
+                        config.ShowTierName = ShowTierName;
+                        config.Save();
+                    }
+                    #endregion
+                
                 
                 //separator
                 ImGui.NewLine();
@@ -467,7 +494,8 @@ namespace FFLogsLookup
                     {
                         this.testReqSent = true;
                         this.testReqPending = false;
-                        this.testReqSucceeded = res.Result;
+                        this.testReqSucceeded = res.Result == 1;
+                        this.testReqCode = res.Result;
                         if (testReqSucceeded)
                         {
                             this.workingId = this.client_id;
@@ -491,11 +519,18 @@ namespace FFLogsLookup
                 ImGui.SameLine();
                 if (this.testReqSent)
                 {
-                    var msgColor = testReqSucceeded ? new Vector4(0f, 1f, 0f, 1f) : new Vector4(1f, 0f, 0f, 1f);
+                    var msgColor = testReqCode switch
+                    {
+                        2 => new Vector4(1f, 0.83f, 0.2f, 1f),
+                        1 => new Vector4(0f, 1f, 0f, 1f),
+                        0 => new Vector4(1f, 0f, 0f, 1f)
+                    };
                     ImGui.PushStyleColor(ImGuiCol.Text, msgColor);
-                    ImGui.Text(testReqSucceeded
-                        ? " Success!"
-                        : " Incorrect credentials.");
+                    ImGui.Text(testReqCode switch {
+                        2 => "FFLogs is down...",
+                        1 => " Success!",
+                        0 => " Incorrect credentials."
+                    });
                     ImGui.PopStyleColor();
                 }
                 else if (testReqPending)

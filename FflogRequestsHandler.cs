@@ -23,6 +23,7 @@ public class FflogRequestsHandler
 
     public const string LOGS_NOT_FOUND = "Logs not found.";
     public const string HIDDEN_LOGS = "Hidden logs.";
+    public const string DownForMaintenance = "The site is offline for a brief maintenance.";
 
     public static List<Lumina.Excel.GeneratedSheets.World> _worlds;
     public static List<Lumina.Excel.GeneratedSheets.WorldDCGroupType> _worldDcs;
@@ -77,6 +78,7 @@ public class FflogRequestsHandler
             ParameterType.RequestBody
         );
         var response = await OAuthClient.ExecuteAsync(request);
+        //PluginLog.Log(response.Content);
         var obj = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.Content);
         if (!obj.Keys.Contains("access_token")) return "";
         this.BearerToken = (string)obj["access_token"];
@@ -99,6 +101,7 @@ public class FflogRequestsHandler
             ParameterType.RequestBody
         );
         var response = await OAuthClient.ExecuteAsync(request);
+        if (response.Content == DownForMaintenance) return null;
         var obj = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.Content);
         if (!obj.Keys.Contains("access_token")) return "";
         this.BearerToken = (string)obj["access_token"];
@@ -113,46 +116,50 @@ public class FflogRequestsHandler
     /// <param name="client_id"></param>
     /// <param name="client_secret"></param>
     /// <returns>Whether or not the id/secret pair was valid</returns>
-    public async Task<bool> TestRequest(string client_id, string client_secret)
+    public async Task<int> TestRequest(string client_id, string client_secret)
     {
         var request = new RestRequest(Method.POST);
         var bearer = await GetBearerToken(client_id, client_secret);
-        if (bearer == "")
+        switch (bearer)
         {
-            return false;
-        } 
+            case null:
+                return 2;
+            case "":
+                return 0;
+        }
         request.AddHeader("Content-Type", "application/json");
         request.AddHeader("Authorization", $"Bearer {bearer}");
         request.AddParameter("application/json", "{\"query\":\"query {\\n  rateLimitData {\\n    pointsResetIn\\n  }\\n}\"}", ParameterType.RequestBody);
         var response = await this.Client.ExecuteAsync(request);
+        PluginLog.Log("test req: "+response.Content);
         try
         {
             var obj = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.Content);
-            return !obj.Keys.Contains("error");
+            return obj.Keys.Contains("error") ? 0 : 1;
         }
         catch (Exception)
         {
             this.BearerToken = bearer;
-            return true;
+            return 1;
         }
     }
 
     public async Task<dynamic> PerformUltRequest(PluginUi.InspectInfo iInfo)
     {
         
-        var world = _worlds.Find(w => w.Name.ToString().ToLower().Equals(iInfo.homeWorld.ToLower()));
+        var world = _worlds.Find(w => w.Name.ToString().ToLower().Equals(iInfo.HomeWorld.ToLower()));
         var dc = _worldDcs.Find(d => d.Name.ToString().Equals(world.DataCenter.Value.Name));
         var region = _regionName[dc.Region];
 
         var prettifiedReq = "{\"query\":" +
                             "\"query characterData {\\n" +
                             "  characterData {\\n" +
-                            "    character(name: \\\""+iInfo.firstName+" "+iInfo.lastName+"\\\", serverSlug: \\\""+iInfo.homeWorld+"\\\", serverRegion: \\\""+region+"\\\") {\\n" +
+                            "    character(name: \\\""+iInfo.FirstName+" "+iInfo.LastName+"\\\", serverSlug: \\\""+iInfo.HomeWorld+"\\\", serverRegion: \\\""+region+"\\\") {\\n" +
                             "      hidden\\n" +
-                            (iInfo.reqTea ? "      Tea: zoneRankings(zoneID: 32)\\n" : "") +
-                            (iInfo.reqUcob||iInfo.reqUwu ? "      UcobUwuNew: zoneRankings(zoneID: 30)\\n" : "")+
-                            (iInfo.reqUcob ? "      UcobOld: zoneRankings(zoneID: 19)\\n" : "")+
-                            (iInfo.reqUwu ? "      UwuOld: zoneRankings(zoneID: 23)\\n": "") +
+                            (iInfo.ReqTea ? "      Tea: zoneRankings(zoneID: 32)\\n" : "") +
+                            (iInfo.ReqUcob||iInfo.ReqUwu ? "      UcobUwuNew: zoneRankings(zoneID: 30)\\n" : "")+
+                            (iInfo.ReqUcob ? "      UcobOld: zoneRankings(zoneID: 19)\\n" : "")+
+                            (iInfo.ReqUwu ? "      UwuOld: zoneRankings(zoneID: 23)\\n": "") +
                             "    }\\n" +
                             "  }\\n" +
                             "}\\n\"," +
@@ -218,7 +225,11 @@ public class FflogRequestsHandler
 
         var cancellationTokenSource = new CancellationTokenSource();
         var response = await Client.ExecuteAsync(request, cancellationTokenSource.Token);
-
+        /*PluginLog.Log($"encoding: {response.ContentEncoding}" +
+                      $"type: {response.ContentType}" +
+                      $"errormsg: {response.ErrorMessage}" +
+                      $"statuscode: {response.StatusCode}");*/
+        if (response.Content == DownForMaintenance) return null;
         return JsonConvert.DeserializeObject<FflogsApiResponse>(response.Content);
     }
 
