@@ -46,7 +46,7 @@ namespace FFLogsLookup
         public static readonly Vector4 Grey = new Vector4(0.4f, 0.4f, 0.4f, 1f);
         private RaidingTierPerformance RaidingPerformance { get; set; }
         public List<Fight> UltPerformance { get; set; }
-        
+
         public PluginUi(DalamudPluginInterface pluginInterface, FflogRequestsHandler fflog, Configuration config)
         {
             this._interface = pluginInterface;
@@ -56,6 +56,7 @@ namespace FFLogsLookup
             this.checkWeaponsOnce = true;
             this.InspectWindowChanged = false;
             this.SnapshotInspectedPlayer = true;
+
             // ughhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
             // load the lumina sheet for titles in whatever language the client is
             // ideally i would pass this: (Lumina.Data.Language)((int)Interface.ClientState.ClientLanguage)
@@ -663,7 +664,7 @@ namespace FFLogsLookup
                 
                 var totalPercentiles = 0;
                 var cx = ImGui.GetCursorPosX();
-                const int spacing = 20;
+                float spacing = 3 + ImGui.GetFontSize();
                 for (var i = 0; i < this.RaidingPerformance.fightsArray.Length; i++)
                 {
                     var fight = this.RaidingPerformance.fightsArray[i];
@@ -681,6 +682,7 @@ namespace FFLogsLookup
                     }
                     totalPercentiles += fight.highestPercentile;
                 }
+                
 
                 ImGui.NewLine(); ImGui.BeginGroup(); // items below parses group 
                 

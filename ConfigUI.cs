@@ -124,6 +124,8 @@ namespace FFLogsLookup
         }
 
         
+
+
         #region Draw Initial (Tutorial) interface
         public void DrawInitialSetup()
         {
@@ -264,7 +266,7 @@ namespace FFLogsLookup
                 ImGui.SetCursorPosX(cx+rightOffset+rightBoundOffset);
                 ImGui.SetCursorPosX(cx+labeloffset);
                 var text = "Detect overlapping windows? ";
-                ImGui.SetCursorPosX(ImGui.GetWindowSize().X-ImGui.CalcTextSize(text).X-50);
+                ImGui.SetCursorPosX(172);
                 ImGui.Text(text); ImGui.SameLine();
                 if (ImGui.Checkbox("##overlapsDetectionToggle", ref DetectOverlaps))
                 {
