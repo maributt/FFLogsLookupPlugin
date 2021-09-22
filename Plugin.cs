@@ -146,12 +146,7 @@ namespace FFLogsLookup
         }
 
         [Command("/ffll")]
-        [HelpMessage("Lookup a given character's FFlogs parses\n" +
-                     "Example:\n" +
-                     "     /ffll first_name last_name world (if world isn't specified it assumes the character is on your world)\n" +
-                     "     /ffll <target selector> world (valid target selectors are: <mo>, <t>, <me>, <f>) (world is assumed if not mentioned)\n"+
-                     "     /ffll -> opens the configuration interface"
-        )]
+        [HelpMessage("Usage: \"/ffll\" -> Tweak display options. \"/ffll <t>\", \"/ffll <firstname> <lastname> <world>\" -> Display specified character's logs in chat")]
         public async void LookupChatCommand(string command, string arguments)
         {
             

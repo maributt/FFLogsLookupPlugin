@@ -328,9 +328,9 @@ namespace FFLogsLookup
                                            (-50 * Math.Pow(this._target.WinScale, 2f)) +
                                            595 * this._target.WinScale
                                            - 616);
-                var inspectWindowNodeList = inspectWindow->ULDData.NodeList;
+                var inspectWindowNodeList = inspectWindow->UldManager.NodeList;
                 this._target.WinFocused =
-                    ((AtkComponentNode*) inspectWindowNodeList[1])->Component->ULDData.NodeList[3]->IsVisible;
+                    ((AtkComponentNode*) inspectWindowNodeList[1])->Component->UldManager.NodeList[3]->IsVisible;
                 this._target.HomeWorld = Marshal.PtrToStringAnsi(new IntPtr(((AtkTextNode*)inspectWindowNodeList[59])->NodeText.StringPtr));
                 var name = "";
                 
@@ -465,7 +465,7 @@ namespace FFLogsLookup
             {
                 
                 //if the addon is not focused
-                if (!((AtkComponentNode*) ((AtkUnitBase*)addon)->ULDData.NodeList[1])->Component->ULDData.NodeList[3]->IsVisible) 
+                if (!((AtkComponentNode*) ((AtkUnitBase*)addon)->UldManager.NodeList[1])->Component->UldManager.NodeList[3]->IsVisible) 
                     return false;
                 var a = new Dalamud.Game.Internal.Gui.Addon.Addon(addon,
                     Marshal.PtrToStructure<Dalamud.Game.Internal.Gui.Structs.Addon>(addon));
@@ -512,7 +512,7 @@ namespace FFLogsLookup
                     this._target.WinPosY + this._target.WinHeight -65
                 )
             );
-            ImGui.Begin("reminder",ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize);
+            ImGui.Begin("reminder",ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoBringToFrontOnFocus);
             ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0f, 0f, 1f));
             ImGui.Text("You must complete the initial configuration\nbefore you can start looking at other players' logs!");
             ImGui.PopStyleColor();
@@ -642,7 +642,7 @@ namespace FFLogsLookup
         
         private void DrawPercentiles()
         {
-            var flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize;
+            var flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoBringToFrontOnFocus;
             if (!this._config.ShowBackground) flags |= ImGuiWindowFlags.NoBackground;
             ImGui.SetNextWindowPos(
                 new Vector2(

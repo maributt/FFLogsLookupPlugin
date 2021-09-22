@@ -22,6 +22,7 @@ namespace FFLogsLookup
         public bool ShowBackground = false;
         public bool ShowOnlyNormal = false;
         public bool ShowMedian = false;
+        public bool DetectOverlaps = false;
 
         public string client_id = "";
         public string client_secret = "";

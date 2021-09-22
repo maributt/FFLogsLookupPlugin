@@ -46,7 +46,14 @@ public class FflogRequestsHandler
 	{
         this.Interface = pluginInterface;
         this.config = config;
-        this.BearerToken = config.bearer_token;
+        this.BearerToken = string.IsNullOrWhiteSpace(config.bearer_token) ? GetBearerToken().Result : config.bearer_token;
+        if (!config.initialConfig)
+        {
+            if (string.IsNullOrWhiteSpace(config.client_id) || string.IsNullOrWhiteSpace(config.client_secret))
+            {
+                config.initialConfig = true;
+            }
+        }
 
         _worlds =  Interface.Data.GetExcelSheet<Lumina.Excel.GeneratedSheets.World>().ToList();
         _worldDcs = Interface.Data.GetExcelSheet<Lumina.Excel.GeneratedSheets.WorldDCGroupType>().ToList();

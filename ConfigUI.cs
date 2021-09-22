@@ -123,10 +123,6 @@ namespace FFLogsLookup
             this.DetectOverlaps = config.DetectOverlaps;
         }
 
-        
-
-
-        #region Draw Initial (Tutorial) interface
         public void DrawInitialSetup()
         {
             if (!config.initialConfig)
@@ -246,7 +242,6 @@ namespace FFLogsLookup
             ImGui.NewLine();
             ImGui.End();
         }
-        #endregion
 
         public void Draw()
         {
@@ -525,14 +520,17 @@ namespace FFLogsLookup
                     {
                         2 => new Vector4(1f, 0.83f, 0.2f, 1f),
                         1 => new Vector4(0f, 1f, 0f, 1f),
-                        0 => new Vector4(1f, 0f, 0f, 1f)
+                        0 => new Vector4(1f, 0f, 0f, 1f),
+                        _ => Vector4.One
                     };
                     ImGui.PushStyleColor(ImGuiCol.Text, msgColor);
-                    ImGui.Text(testReqCode switch {
+                    ImGui.Text(testReqCode switch
+                    {
                         2 => "FFLogs is down...",
                         1 => " Success!",
-                        0 => " Incorrect credentials."
-                    });
+                        0 => " Incorrect credentials.",
+                        _ => "if you read this its probably already too late"
+                    }) ;
                     ImGui.PopStyleColor();
                 }
                 else if (testReqPending)
